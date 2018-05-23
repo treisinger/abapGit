@@ -27,15 +27,16 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_FOLDER_LOGIC IMPLEMENTATION.
+CLASS zcl_abapgit_folder_logic IMPLEMENTATION.
 
 
   METHOD package_to_path.
 
-    DATA: lv_len      TYPE i,
-          lv_path     TYPE string,
-          lv_message  TYPE string,
-          lv_parentcl TYPE tdevc-parentcl.
+    DATA: lv_len          TYPE i,
+          lv_path         TYPE string,
+          lv_message      TYPE string,
+          lv_parentcl     TYPE tdevc-parentcl,
+          lv_folder_logic TYPE string.
 
     IF iv_top = iv_package.
       rv_path = io_dot->get_starting_folder( ).
@@ -45,7 +46,8 @@ CLASS ZCL_ABAPGIT_FOLDER_LOGIC IMPLEMENTATION.
       IF lv_parentcl IS INITIAL.
         zcx_abapgit_exception=>raise( |error, expected parent package, { iv_package }| ).
       ELSE.
-        CASE io_dot->get_folder_logic( ).
+        lv_folder_logic = io_dot->get_folder_logic( ).
+        CASE lv_folder_logic.
           WHEN zif_abapgit_dot_abapgit=>c_folder_logic-full.
             lv_len = 0.
             IF iv_package(1) = '$'.
@@ -58,11 +60,12 @@ CLASS ZCL_ABAPGIT_FOLDER_LOGIC IMPLEMENTATION.
 * if abapGit project is installed in package ZZZ, all subpackages should be named
 * ZZZ_something. This will define the folder name in the zip file to be "something",
 * similarily with online projects. Alternatively change to FULL folder logic
-              lv_message = 'PREFIX: Unexpected package naming(' && iv_package && ')' ##no_text.
+              lv_message = 'PREFIX: Unexpected package naming (' && iv_package && ')'
+                           && 'you might switch to FULL folder logic' ##no_text.
               zcx_abapgit_exception=>raise( lv_message ).
             ENDIF.
           WHEN OTHERS.
-            ASSERT 0 = 1.
+            zcx_abapgit_exception=>raise( |Invalid folder logic: { lv_folder_logic }| ).
         ENDCASE.
 
         lv_path = iv_package+lv_len.

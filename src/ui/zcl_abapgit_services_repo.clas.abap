@@ -5,9 +5,11 @@ CLASS zcl_abapgit_services_repo DEFINITION
 
   PUBLIC SECTION.
 
-    CLASS-METHODS clone
+    CLASS-METHODS new_online
       IMPORTING
-        !iv_url TYPE string
+        !iv_url        TYPE string
+      RETURNING
+        VALUE(ro_repo) TYPE REF TO zcl_abapgit_repo_online
       RAISING
         zcx_abapgit_exception
         zcx_abapgit_cancel .
@@ -83,7 +85,8 @@ CLASS zcl_abapgit_services_repo DEFINITION
       CHANGING
         !ct_overwrite TYPE zif_abapgit_definitions=>ty_overwrite_tt
       RAISING
-        zcx_abapgit_exception .
+        zcx_abapgit_exception
+        zcx_abapgit_cancel .
     CLASS-METHODS popup_package_overwrite
       CHANGING
         !ct_overwrite TYPE zif_abapgit_definitions=>ty_overwrite_tt
@@ -95,37 +98,6 @@ ENDCLASS.
 
 
 CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
-
-
-  METHOD clone.
-
-    DATA: lo_repo  TYPE REF TO zcl_abapgit_repo_online,
-          ls_popup TYPE zcl_abapgit_popups=>ty_popup.
-
-
-    ls_popup = zcl_abapgit_popups=>repo_popup( iv_url ).
-    IF ls_popup-cancel = abap_true.
-      RAISE EXCEPTION TYPE zcx_abapgit_cancel.
-    ENDIF.
-
-    lo_repo = zcl_abapgit_repo_srv=>get_instance( )->new_online(
-      iv_url         = ls_popup-url
-      iv_branch_name = ls_popup-branch_name
-      iv_package     = ls_popup-package ).
-
-    toggle_favorite( lo_repo->get_key( ) ).
-
-    lo_repo->initialize( ).
-    lo_repo->find_remote_dot_abapgit( ).
-    lo_repo->status( ). " check for errors
-
-    gui_deserialize( lo_repo ).
-
-    zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( lo_repo->get_key( ) ). " Set default repo for user
-
-    COMMIT WORK.
-
-  ENDMETHOD.  "clone
 
 
   METHOD gui_deserialize.
@@ -146,6 +118,10 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
           lt_requirements = io_repo->get_dot_abapgit( )->get_data( )-requirements.
           zcl_abapgit_requirement_helper=>requirements_popup( lt_requirements ).
           ls_checks-requirements-decision = 'Y'.
+        ENDIF.
+
+        IF ls_checks-transport-required = abap_true.
+          ls_checks-transport-transport = zcl_abapgit_popups=>popup_transport_request( ).
         ENDIF.
 
       CATCH zcx_abapgit_cancel.
@@ -178,6 +154,31 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     COMMIT WORK.
 
   ENDMETHOD.  "new_offline
+
+
+  METHOD new_online.
+
+    DATA: ls_popup TYPE zcl_abapgit_popups=>ty_popup.
+
+
+    ls_popup = zcl_abapgit_popups=>repo_popup( iv_url ).
+    IF ls_popup-cancel = abap_true.
+      RAISE EXCEPTION TYPE zcx_abapgit_cancel.
+    ENDIF.
+
+    ro_repo = zcl_abapgit_repo_srv=>get_instance( )->new_online(
+      iv_url         = ls_popup-url
+      iv_branch_name = ls_popup-branch_name
+      iv_package     = ls_popup-package ).
+
+    toggle_favorite( ro_repo->get_key( ) ).
+
+* Set default repo for user
+    zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( ro_repo->get_key( ) ).
+
+    COMMIT WORK.
+
+  ENDMETHOD.
 
 
   METHOD open_se80.
@@ -220,7 +221,6 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
         it_columns_to_display = lt_columns
       IMPORTING
         et_list               = lt_selected ).
-* todo, it should be possible for the user to click cancel in the popup
 
     LOOP AT ct_overwrite ASSIGNING <ls_overwrite>.
       READ TABLE lt_selected WITH KEY

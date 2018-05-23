@@ -1,4 +1,4 @@
-CLASS zcl_abapgit_object_ecvo DEFINITION
+CLASS zcl_abapgit_object_ecsp DEFINITION
   PUBLIC
   INHERITING FROM zcl_abapgit_object_ecatt_super
   FINAL
@@ -22,7 +22,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_ecvo IMPLEMENTATION.
+CLASS zcl_abapgit_object_ecsp IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -36,20 +36,20 @@ CLASS zcl_abapgit_object_ecvo IMPLEMENTATION.
   METHOD get_object_type.
 
 *    constant missing in 702
-*    rv_object_type = cl_apl_ecatt_const=>obj_type_ecatt_vo.
-    rv_object_type = 'ECVO'.
+*    rv_object_type = cl_apl_ecatt_const=>obj_type_start_profile.
+    rv_object_type = 'ECSP'.
 
   ENDMETHOD.
 
   METHOD get_upload.
 
-    CREATE OBJECT ro_upload TYPE zcl_abapgit_ecatt_val_obj_upl.
+    CREATE OBJECT ro_upload TYPE zcl_abapgit_ecatt_sp_upload.
 
   ENDMETHOD.
 
   METHOD get_download.
 
-    CREATE OBJECT ro_download TYPE zcl_abapgit_ecatt_val_obj_down.
+    CREATE OBJECT ro_download TYPE zcl_abapgit_ecatt_sp_download.
 
   ENDMETHOD.
 

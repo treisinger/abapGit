@@ -94,10 +94,17 @@ INTERFACE zif_abapgit_definitions PUBLIC.
            decision TYPE ty_yes_no,
          END OF ty_requirements.
 
+  TYPES: BEGIN OF ty_transport,
+           required  TYPE abap_bool,
+           transport TYPE trkorr,
+         END OF ty_transport.
+
+
   TYPES: BEGIN OF ty_deserialize_checks,
            overwrite       TYPE ty_overwrite_tt,
            warning_package TYPE ty_overwrite_tt,
            requirements    TYPE ty_requirements,
+           transport       TYPE ty_transport,
          END OF ty_deserialize_checks.
 
   TYPES:
@@ -278,8 +285,13 @@ INTERFACE zif_abapgit_definitions PUBLIC.
          END OF ty_repo_item.
   TYPES tt_repo_items TYPE STANDARD TABLE OF ty_repo_item WITH DEFAULT KEY.
 
+  TYPES: BEGIN OF ty_s_user_settings,
+           max_lines        TYPE i,
+           adt_jump_enabled TYPE abap_bool,
+         END OF ty_s_user_settings.
+
   CONSTANTS gc_xml_version TYPE string VALUE 'v1.0.0' ##NO_TEXT.
-  CONSTANTS gc_abap_version TYPE string VALUE 'v1.64.0' ##NO_TEXT.
+  CONSTANTS gc_abap_version TYPE string VALUE 'v1.67.0' ##NO_TEXT.
   CONSTANTS:
     BEGIN OF gc_type,
       commit TYPE zif_abapgit_definitions=>ty_type VALUE 'commit', "#EC NOTEXT
@@ -332,14 +344,14 @@ INTERFACE zif_abapgit_definitions PUBLIC.
   CONSTANTS gc_english TYPE spras VALUE 'E' ##NO_TEXT.
   CONSTANTS gc_root_dir TYPE string VALUE '/' ##NO_TEXT.
   CONSTANTS gc_dot_abapgit TYPE string VALUE '.abapgit.xml' ##NO_TEXT.
-  CONSTANTS gc_author_regex TYPE string VALUE '^([\\\w\s\.@\-_1-9\(\) ]+) <(.*)> (\d{10})\s?.\d{4}$' ##NO_TEXT.
+  CONSTANTS gc_author_regex TYPE string VALUE '^([\\\w\s\.\,\#@\-_1-9\(\) ]+) <(.*)> (\d{10})\s?.\d{4}$' ##NO_TEXT.
   CONSTANTS:
     BEGIN OF gc_action,
-      repo_clone               TYPE string VALUE 'repo_clone',
       repo_refresh             TYPE string VALUE 'repo_refresh',
       repo_remove              TYPE string VALUE 'repo_remove',
       repo_settings            TYPE string VALUE 'repo_settings',
       repo_purge               TYPE string VALUE 'repo_purge',
+      repo_newonline           TYPE string VALUE 'repo_newonline',
       repo_newoffline          TYPE string VALUE 'repo_newoffline',
       repo_remote_attach       TYPE string VALUE 'repo_remote_attach',
       repo_remote_detach       TYPE string VALUE 'repo_remote_detach',
