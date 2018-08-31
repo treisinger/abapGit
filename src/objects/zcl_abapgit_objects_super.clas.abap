@@ -40,6 +40,24 @@ CLASS zcl_abapgit_objects_super DEFINITION PUBLIC ABSTRACT.
       jump_se11
         IMPORTING iv_radio TYPE string
                   iv_field TYPE string
+        RAISING   zcx_abapgit_exception,
+      exists_a_lock_entry_for
+        IMPORTING iv_lock_object                TYPE string
+                  iv_argument                   TYPE seqg3-garg OPTIONAL
+        RETURNING VALUE(rv_exists_a_lock_entry) TYPE abap_bool
+        RAISING   zcx_abapgit_exception,
+      set_default_package
+        IMPORTING iv_package TYPE devclass,
+      serialize_longtexts
+        IMPORTING io_xml         TYPE REF TO zcl_abapgit_xml_output
+                  iv_longtext_id TYPE dokil-id OPTIONAL
+                  it_dokil       TYPE zif_abapgit_definitions=>tty_dokil OPTIONAL
+        RAISING   zcx_abapgit_exception,
+      deserialize_longtexts
+        IMPORTING io_xml TYPE REF TO zcl_abapgit_xml_input
+        RAISING   zcx_abapgit_exception,
+      delete_longtexts
+        IMPORTING iv_longtext_id TYPE dokil-id
         RAISING   zcx_abapgit_exception.
 
   PRIVATE SECTION.
@@ -55,7 +73,24 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECTS_SUPER IMPLEMENTATION.
+CLASS zcl_abapgit_objects_super IMPLEMENTATION.
+
+
+  METHOD set_default_package.
+
+    " In certain cases we need to set the package package via ABAP memory
+    " because we can't supply it via the APIs.
+    "
+    " Set default package, see function module RS_CORR_INSERT FORM get_current_devclass.
+    "
+    " We use ABAP memory instead the SET parameter because it is
+    " more reliable. SET parameter doesn't work when multiple objects
+    " are deserialized which uses the ABAP memory mechanism.
+    " We don't need to reset the memory as it is done in above mentioned form routine.
+
+    EXPORT current_devclass FROM iv_package TO MEMORY ID 'EUK'.
+
+  ENDMETHOD.
 
 
   METHOD check_timestamp.
@@ -84,7 +119,7 @@ CLASS ZCL_ABAPGIT_OBJECTS_SUPER IMPLEMENTATION.
     ASSERT NOT ms_item IS INITIAL.
     mv_language = iv_language.
     ASSERT NOT mv_language IS INITIAL.
-  ENDMETHOD.                    "constructor
+  ENDMETHOD.
 
 
   METHOD corr_insert.
@@ -113,7 +148,51 @@ CLASS ZCL_ABAPGIT_OBJECTS_SUPER IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'error from RS_CORR_INSERT' ).
     ENDIF.
 
-  ENDMETHOD.                    "corr_insert
+  ENDMETHOD.
+
+
+  METHOD delete_longtexts.
+
+    zcl_abapgit_longtexts=>delete( iv_longtext_id = iv_longtext_id
+                                   iv_object_name = ms_item-obj_name
+                                   iv_language    = mv_language ).
+
+  ENDMETHOD.
+
+
+  METHOD deserialize_longtexts.
+
+    zcl_abapgit_longtexts=>deserialize( io_xml ).
+
+  ENDMETHOD.
+
+
+  METHOD exists_a_lock_entry_for.
+
+    DATA: lt_lock_entries TYPE STANDARD TABLE OF seqg3.
+
+    CALL FUNCTION 'ENQUEUE_READ'
+      EXPORTING
+        guname                = '*'
+        garg                  = iv_argument
+      TABLES
+        enq                   = lt_lock_entries
+      EXCEPTIONS
+        communication_failure = 1
+        system_failure        = 2
+        OTHERS                = 3.
+
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    READ TABLE lt_lock_entries TRANSPORTING NO FIELDS
+                               WITH KEY gobj = iv_lock_object.
+    IF sy-subrc = 0.
+      rv_exists_a_lock_entry = abap_true.
+    ENDIF.
+
+  ENDMETHOD.
 
 
   METHOD get_metadata.
@@ -127,7 +206,7 @@ CLASS ZCL_ABAPGIT_OBJECTS_SUPER IMPLEMENTATION.
     rs_metadata-class = lv_class.
     rs_metadata-version = 'v1.0.0' ##no_text.
 
-  ENDMETHOD.                    "get_metadata
+  ENDMETHOD.
 
 
   METHOD is_adt_jump_possible.
@@ -279,7 +358,18 @@ CLASS ZCL_ABAPGIT_OBJECTS_SUPER IMPLEMENTATION.
         OTHERS                = 4
         ##fm_subrc_ok.                                                   "#EC CI_SUBRC
 
-  ENDMETHOD.                                                "jump_se11
+  ENDMETHOD.
+
+
+  METHOD serialize_longtexts.
+
+    zcl_abapgit_longtexts=>serialize( iv_object_name = ms_item-obj_name
+                                      iv_longtext_id = iv_longtext_id
+                                      iv_language    = mv_language
+                                      it_dokil       = it_dokil
+                                      io_xml         = io_xml ).
+
+  ENDMETHOD.
 
 
   METHOD tadir_insert.

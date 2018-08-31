@@ -44,7 +44,7 @@ CLASS ZCL_ABAPGIT_XML IMPLEMENTATION.
   METHOD constructor.
     mi_ixml = cl_ixml=>create( ).
     mi_xml_doc = mi_ixml->create_document( ).
-  ENDMETHOD.                    "constructor
+  ENDMETHOD.
 
 
   METHOD display_xml_error.
@@ -52,7 +52,7 @@ CLASS ZCL_ABAPGIT_XML IMPLEMENTATION.
     DATA: lv_version TYPE string.
 
 
-    lv_version = |abapGit version: { zif_abapgit_definitions=>gc_abap_version }|.
+    lv_version = |abapGit version: { zif_abapgit_version=>gc_abap_version }|.
 
     CALL FUNCTION 'POPUP_TO_INFORM'
       EXPORTING
@@ -63,7 +63,7 @@ CLASS ZCL_ABAPGIT_XML IMPLEMENTATION.
 
     zcx_abapgit_exception=>raise( 'XML error' ).
 
-  ENDMETHOD.                    "display_xml_error
+  ENDMETHOD.
 
 
   METHOD error.
@@ -98,7 +98,7 @@ CLASS ZCL_ABAPGIT_XML IMPLEMENTATION.
     ENDIF.
 
     zcx_abapgit_exception=>raise( 'Error while parsing XML' ).
-  ENDMETHOD.                    "error
+  ENDMETHOD.
 
 
   METHOD parse.
@@ -128,7 +128,7 @@ CLASS ZCL_ABAPGIT_XML IMPLEMENTATION.
     li_element = mi_xml_doc->find_from_name_ns( depth = 0 name = c_abapgit_tag ).
     li_version = li_element->if_ixml_node~get_attributes(
       )->get_named_item_ns( c_attr_version ) ##no_text.
-    IF li_version->get_value( ) <> zif_abapgit_definitions=>gc_xml_version.
+    IF li_version->get_value( ) <> zif_abapgit_version=>gc_xml_version.
       display_xml_error( ).
     ENDIF.
 
@@ -136,7 +136,7 @@ CLASS ZCL_ABAPGIT_XML IMPLEMENTATION.
     ms_metadata-class   = li_element->get_attribute_ns( c_attr_serializer ).
     ms_metadata-version = li_element->get_attribute_ns( c_attr_serializer_version ).
 
-  ENDMETHOD.                    "parse
+  ENDMETHOD.
 
 
   METHOD to_xml.
@@ -157,5 +157,5 @@ CLASS ZCL_ABAPGIT_XML IMPLEMENTATION.
 
     li_renderer->render( ).
 
-  ENDMETHOD.                    "to_xml
+  ENDMETHOD.
 ENDCLASS.

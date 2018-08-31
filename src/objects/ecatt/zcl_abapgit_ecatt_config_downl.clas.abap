@@ -27,7 +27,9 @@ CLASS zcl_abapgit_ecatt_config_downl DEFINITION
 ENDCLASS.
 
 
+
 CLASS zcl_abapgit_ecatt_config_downl IMPLEMENTATION.
+
 
   METHOD download.
 
@@ -54,7 +56,9 @@ CLASS zcl_abapgit_ecatt_config_downl IMPLEMENTATION.
 
     set_attributes_to_template( ).
     ecatt_config ?= ecatt_object.
-    set_ecatt_objects_to_template( ).
+
+    CALL METHOD ('SET_ECATT_OBJECTS_TO_TEMPLATE'). " doesn't exist in 702
+
 * MS180406
     set_var_mode_to_dom( ).
 * ENDMS180406
@@ -69,7 +73,7 @@ CLASS zcl_abapgit_ecatt_config_downl IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    set_variants_to_dom( im_params = ecatt_config->params ).
+    set_variants_to_dom( ecatt_config->params ).
 
     download_data( ).
 
@@ -102,5 +106,4 @@ CLASS zcl_abapgit_ecatt_config_downl IMPLEMENTATION.
     rv_xml_stream_size = mv_xml_stream_size.
 
   ENDMETHOD.
-
 ENDCLASS.

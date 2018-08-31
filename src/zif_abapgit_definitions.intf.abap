@@ -43,11 +43,35 @@ INTERFACE zif_abapgit_definitions PUBLIC.
   TYPES:
     ty_git_branch_list_tt TYPE STANDARD TABLE OF ty_git_branch WITH DEFAULT KEY .
 
+  TYPES:
+    BEGIN OF ty_git_tag,
+      sha1         TYPE zif_abapgit_definitions=>ty_sha1,
+      object       TYPE zif_abapgit_definitions=>ty_sha1,
+      name         TYPE string,
+      type         TYPE ty_git_branch_type,
+      display_name TYPE string,
+      tagger_name  TYPE string,
+      tagger_email TYPE string,
+      message      TYPE string,
+      body         TYPE string,
+    END OF ty_git_tag .
+  TYPES:
+    ty_git_tag_list_tt TYPE STANDARD TABLE OF ty_git_tag WITH DEFAULT KEY .
+
+  TYPES:
+    BEGIN OF ty_hotkey,
+      sequence TYPE string,
+      action   TYPE string,
+    END OF ty_hotkey,
+    tty_hotkey TYPE STANDARD TABLE OF ty_hotkey
+                    WITH NON-UNIQUE DEFAULT KEY.
+
   CONSTANTS:
     BEGIN OF c_git_branch_type,
-      branch TYPE ty_git_branch_type VALUE 'HD',
-      tag    TYPE ty_git_branch_type VALUE 'TG',
-      other  TYPE ty_git_branch_type VALUE 'ZZ',
+      branch          TYPE ty_git_branch_type VALUE 'HD',
+      lightweight_tag TYPE ty_git_branch_type VALUE 'TG',
+      annotated_tag   TYPE ty_git_branch_type VALUE 'AT',
+      other           TYPE ty_git_branch_type VALUE 'ZZ',
     END OF c_git_branch_type .
   CONSTANTS c_head_name TYPE string VALUE 'HEAD' ##NO_TEXT.
 
@@ -94,9 +118,15 @@ INTERFACE zif_abapgit_definitions PUBLIC.
            decision TYPE ty_yes_no,
          END OF ty_requirements.
 
+  TYPES: BEGIN OF ty_transport_type,
+           request TYPE trfunction,
+           task    TYPE trfunction,
+         END OF ty_transport_type.
+
   TYPES: BEGIN OF ty_transport,
            required  TYPE abap_bool,
            transport TYPE trkorr,
+           type      TYPE ty_transport_type,
          END OF ty_transport.
 
 
@@ -105,7 +135,10 @@ INTERFACE zif_abapgit_definitions PUBLIC.
            warning_package TYPE ty_overwrite_tt,
            requirements    TYPE ty_requirements,
            transport       TYPE ty_transport,
-         END OF ty_deserialize_checks.
+         END OF ty_deserialize_checks,
+         BEGIN OF ty_delete_checks,
+           transport TYPE ty_transport,
+         END OF ty_delete_checks.
 
   TYPES:
     BEGIN OF ty_metadata,
@@ -146,9 +179,12 @@ INTERFACE zif_abapgit_definitions PUBLIC.
       type    TYPE zif_abapgit_definitions=>ty_type,
       data    TYPE xstring,
       adler32 TYPE ty_adler32,
+      index   TYPE i,
     END OF ty_object .
   TYPES:
-    ty_objects_tt TYPE STANDARD TABLE OF ty_object WITH DEFAULT KEY .
+    ty_objects_tt TYPE STANDARD TABLE OF ty_object WITH DEFAULT KEY
+      WITH NON-UNIQUE SORTED KEY sha COMPONENTS sha1
+      WITH NON-UNIQUE SORTED KEY type COMPONENTS type sha1.
   TYPES:
     BEGIN OF ty_tadir,
       pgmid    TYPE tadir-pgmid,
@@ -156,6 +192,7 @@ INTERFACE zif_abapgit_definitions PUBLIC.
       obj_name TYPE tadir-obj_name,
       devclass TYPE tadir-devclass,
       korrnum  TYPE tadir-korrnum,
+      delflag  TYPE tadir-delflag,
       path     TYPE string,
     END OF ty_tadir .
   TYPES:
@@ -272,6 +309,18 @@ INTERFACE zif_abapgit_definitions PUBLIC.
            conflict TYPE string,
          END OF ty_merge.
 
+  TYPES: BEGIN OF ty_merge_conflict,
+           path        TYPE string,
+           filename    TYPE string,
+           source_sha1 TYPE zif_abapgit_definitions=>ty_sha1,
+           source_data TYPE xstring,
+           target_sha1 TYPE zif_abapgit_definitions=>ty_sha1,
+           target_data TYPE xstring,
+           result_sha1 TYPE zif_abapgit_definitions=>ty_sha1,
+           result_data TYPE xstring,
+         END OF ty_merge_conflict,
+         tt_merge_conflict TYPE STANDARD TABLE OF ty_merge_conflict WITH DEFAULT KEY.
+
   TYPES: BEGIN OF ty_repo_item,
            obj_type TYPE tadir-object,
            obj_name TYPE tadir-obj_name,
@@ -286,36 +335,43 @@ INTERFACE zif_abapgit_definitions PUBLIC.
   TYPES tt_repo_items TYPE STANDARD TABLE OF ty_repo_item WITH DEFAULT KEY.
 
   TYPES: BEGIN OF ty_s_user_settings,
-           max_lines        TYPE i,
-           adt_jump_enabled TYPE abap_bool,
+           max_lines                  TYPE i,
+           adt_jump_enabled           TYPE abap_bool,
+           show_default_repo          TYPE abap_bool,
+           link_hints_enabled         TYPE abap_bool,
+           link_hint_key              TYPE char01,
+           link_hint_background_color TYPE string,
+           hotkeys                    TYPE tty_hotkey,
          END OF ty_s_user_settings.
 
-  CONSTANTS gc_xml_version TYPE string VALUE 'v1.0.0' ##NO_TEXT.
-  CONSTANTS gc_abap_version TYPE string VALUE 'v1.67.0' ##NO_TEXT.
+  TYPES:
+          tty_dokil TYPE STANDARD TABLE OF dokil
+                         WITH NON-UNIQUE DEFAULT KEY.
+
   CONSTANTS:
-    BEGIN OF gc_type,
+    BEGIN OF c_type,
       commit TYPE zif_abapgit_definitions=>ty_type VALUE 'commit', "#EC NOTEXT
       tree   TYPE zif_abapgit_definitions=>ty_type VALUE 'tree', "#EC NOTEXT
       ref_d  TYPE zif_abapgit_definitions=>ty_type VALUE 'ref_d', "#EC NOTEXT
       tag    TYPE zif_abapgit_definitions=>ty_type VALUE 'tag', "#EC NOTEXT
       blob   TYPE zif_abapgit_definitions=>ty_type VALUE 'blob', "#EC NOTEXT
-    END OF gc_type .
+    END OF c_type .
   CONSTANTS:
-    BEGIN OF gc_state, " https://git-scm.com/docs/git-status
+    BEGIN OF c_state, " https://git-scm.com/docs/git-status
       unchanged TYPE char1 VALUE '',
       added     TYPE char1 VALUE 'A',
       modified  TYPE char1 VALUE 'M',
       deleted   TYPE char1 VALUE 'D', "For future use
       mixed     TYPE char1 VALUE '*',
-    END OF gc_state .
+    END OF c_state .
   CONSTANTS:
-    BEGIN OF gc_chmod,
+    BEGIN OF c_chmod,
       file       TYPE ty_chmod VALUE '100644',
       executable TYPE ty_chmod VALUE '100755',
       dir        TYPE ty_chmod VALUE '40000 ',
-    END OF gc_chmod .
+    END OF c_chmod .
   CONSTANTS:
-    BEGIN OF gc_event_state,
+    BEGIN OF c_event_state,
       not_handled         VALUE 0,
       re_render           VALUE 1,
       new_page            VALUE 2,
@@ -324,29 +380,29 @@ INTERFACE zif_abapgit_definitions PUBLIC.
       new_page_w_bookmark VALUE 5,
       go_back_to_bookmark VALUE 6,
       new_page_replacing  VALUE 7,
-    END OF gc_event_state .
+    END OF c_event_state .
   CONSTANTS:
-    BEGIN OF gc_html_opt,
+    BEGIN OF c_html_opt,
       strong   TYPE c VALUE 'E',
       cancel   TYPE c VALUE 'C',
       crossout TYPE c VALUE 'X',
-    END OF gc_html_opt .
+    END OF c_html_opt .
   CONSTANTS:
-    BEGIN OF gc_action_type,
+    BEGIN OF c_action_type,
       sapevent  TYPE c VALUE 'E',
       url       TYPE c VALUE 'U',
       onclick   TYPE c VALUE 'C',
       separator TYPE c VALUE 'S',
       dummy     TYPE c VALUE '_',
-    END OF gc_action_type .
-  CONSTANTS gc_crlf TYPE abap_cr_lf VALUE cl_abap_char_utilities=>cr_lf ##NO_TEXT.
-  CONSTANTS gc_newline TYPE abap_char1 VALUE cl_abap_char_utilities=>newline ##NO_TEXT.
-  CONSTANTS gc_english TYPE spras VALUE 'E' ##NO_TEXT.
-  CONSTANTS gc_root_dir TYPE string VALUE '/' ##NO_TEXT.
-  CONSTANTS gc_dot_abapgit TYPE string VALUE '.abapgit.xml' ##NO_TEXT.
-  CONSTANTS gc_author_regex TYPE string VALUE '^([\\\w\s\.\,\#@\-_1-9\(\) ]+) <(.*)> (\d{10})\s?.\d{4}$' ##NO_TEXT.
+    END OF c_action_type .
+  CONSTANTS c_crlf TYPE abap_cr_lf VALUE cl_abap_char_utilities=>cr_lf ##NO_TEXT.
+  CONSTANTS c_newline TYPE abap_char1 VALUE cl_abap_char_utilities=>newline ##NO_TEXT.
+  CONSTANTS c_english TYPE spras VALUE 'E' ##NO_TEXT.
+  CONSTANTS c_root_dir TYPE string VALUE '/' ##NO_TEXT.
+  CONSTANTS c_dot_abapgit TYPE string VALUE '.abapgit.xml' ##NO_TEXT.
+  CONSTANTS c_author_regex TYPE string VALUE '^([\\\w\s\.\,\#@\-_1-9\(\) ]+) <(.*)> (\d{10})\s?.\d{4}$' ##NO_TEXT.
   CONSTANTS:
-    BEGIN OF gc_action,
+    BEGIN OF c_action,
       repo_refresh             TYPE string VALUE 'repo_refresh',
       repo_remove              TYPE string VALUE 'repo_remove',
       repo_settings            TYPE string VALUE 'repo_settings',
@@ -360,11 +416,10 @@ INTERFACE zif_abapgit_definitions PUBLIC.
       repo_toggle_fav          TYPE string VALUE 'repo_toggle_fav',
       repo_transport_to_branch TYPE string VALUE 'repo_transport_to_branch',
       repo_syntax_check        TYPE string VALUE 'repo_syntax_check',
+      repo_code_inspector      TYPE string VALUE 'repo_code_inspector',
 
       abapgit_home             TYPE string VALUE 'abapgit_home',
-      abapgit_wiki             TYPE string VALUE 'abapgit_wiki',
       abapgit_install          TYPE string VALUE 'abapgit_install',
-      abapgit_install_pi       TYPE string VALUE 'abapgit_install_pi',
 
       zip_import               TYPE string VALUE 'zip_import',
       zip_export               TYPE string VALUE 'zip_export',
@@ -388,6 +443,7 @@ INTERFACE zif_abapgit_definitions PUBLIC.
 
       go_main                  TYPE string VALUE 'go_main',
       go_explore               TYPE string VALUE 'go_explore',
+      go_repo_overview         TYPE string VALUE 'go_repo_overview',
       go_db                    TYPE string VALUE 'go_db',
       go_background            TYPE string VALUE 'go_background',
       go_background_run        TYPE string VALUE 'go_background_run',
@@ -403,12 +459,14 @@ INTERFACE zif_abapgit_definitions PUBLIC.
 
       jump                     TYPE string VALUE 'jump',
       jump_pkg                 TYPE string VALUE 'jump_pkg',
-    END OF gc_action .
+
+      url                      TYPE string VALUE 'url',
+    END OF c_action .
   CONSTANTS:
-    BEGIN OF gc_version,
+    BEGIN OF c_version,
       active   TYPE r3state VALUE 'A',
       inactive TYPE r3state VALUE 'I',
-    END OF gc_version .
-  CONSTANTS gc_tag_prefix TYPE string VALUE 'refs/tags/' ##NO_TEXT.
+    END OF c_version .
+  CONSTANTS c_tag_prefix TYPE string VALUE 'refs/tags/' ##NO_TEXT.
 
 ENDINTERFACE.

@@ -114,6 +114,22 @@ CLASS zcl_abapgit_objects_program DEFINITION PUBLIC INHERITING FROM zcl_abapgit_
                 iv_skip_gui       TYPE abap_bool DEFAULT abap_false
       RETURNING VALUE(rv_changed) TYPE abap_bool.
 
+    METHODS is_any_dynpro_locked
+      IMPORTING iv_program                     TYPE programm
+      RETURNING VALUE(rv_is_any_dynpro_locked) TYPE abap_bool
+      RAISING   zcx_abapgit_exception.
+
+    METHODS is_cua_locked
+      IMPORTING iv_program              TYPE programm
+      RETURNING VALUE(rv_is_cua_locked) TYPE abap_bool
+      RAISING   zcx_abapgit_exception.
+
+    METHODS is_text_locked
+      IMPORTING iv_program               TYPE programm
+      RETURNING VALUE(rv_is_text_locked) TYPE abap_bool
+      RAISING   zcx_abapgit_exception.
+
+
     CLASS-METHODS:
       add_tpool
         IMPORTING it_tpool        TYPE textpool_table
@@ -132,10 +148,64 @@ CLASS zcl_abapgit_objects_program DEFINITION PUBLIC INHERITING FROM zcl_abapgit_
                   it_spaces      TYPE ty_spaces_tt
         RETURNING VALUE(rt_flow) TYPE swydyflow.
 
+    CLASS-METHODS auto_correct_cua_adm
+      IMPORTING
+        is_cua TYPE zcl_abapgit_objects_program=>ty_cua
+      CHANGING
+        cs_adm TYPE rsmpe_adm.
+
 
 ENDCLASS.
 
 CLASS zcl_abapgit_objects_program IMPLEMENTATION.
+
+  METHOD is_text_locked.
+
+    DATA: lv_object TYPE eqegraarg.
+
+    lv_object = |*{ iv_program }|.
+
+    rv_is_text_locked = exists_a_lock_entry_for( iv_lock_object = 'EABAPTEXTE'
+                                                 iv_argument    = lv_object ).
+
+  ENDMETHOD.
+
+  METHOD is_cua_locked.
+
+    DATA: lv_object TYPE eqegraarg,
+          ls_cua    TYPE zcl_abapgit_objects_program=>ty_cua.
+
+    lv_object = |CU{ iv_program }|.
+    OVERLAY lv_object WITH '                                          '.
+    lv_object = lv_object && '*'.
+
+    rv_is_cua_locked = exists_a_lock_entry_for( iv_lock_object = 'ESCUAPAINT'
+                                                iv_argument    = lv_object ).
+
+  ENDMETHOD.
+
+  METHOD is_any_dynpro_locked.
+
+    DATA: lt_dynpros TYPE zcl_abapgit_objects_program=>ty_dynpro_tt,
+          lv_object  TYPE seqg3-garg.
+
+    FIELD-SYMBOLS: <ls_dynpro> TYPE zcl_abapgit_objects_program=>ty_dynpro.
+
+    lt_dynpros = serialize_dynpros( iv_program ).
+
+    LOOP AT lt_dynpros ASSIGNING <ls_dynpro>.
+
+      lv_object = |{ <ls_dynpro>-header-screen }{ <ls_dynpro>-header-program }|.
+
+      IF exists_a_lock_entry_for( iv_lock_object = 'ESCRP'
+                                  iv_argument    = lv_object ) = abap_true.
+        rv_is_any_dynpro_locked = abap_true.
+        EXIT.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
 
   METHOD condense_flow.
 
@@ -259,7 +329,7 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
     io_files->add_abap( iv_extra = iv_extra
                         it_abap  = lt_source ).
 
-  ENDMETHOD.                    "serialize_program
+  ENDMETHOD.
 
   METHOD deserialize_program.
 
@@ -338,31 +408,29 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
       ENDIF.
 
       zcl_abapgit_language=>restore_login_language( ).
-    ELSE.
+    ELSEIF strlen( is_progdir-name ) > 30.
 * function module RPY_PROGRAM_INSERT cannot handle function group includes
 
-      IF strlen( is_progdir-name ) > 30.
-        " special treatment for extensions
-        " if the program name exceeds 30 characters it is not a usual
-        " ABAP program but might be some extension, which requires the internal
-        " addition EXTENSION TYPE, see
-        " http://help.sap.com/abapdocu_751/en/abapinsert_report_internal.htm#!ABAP_ADDITION_1@1@
-        " This e.g. occurs in case of transportable Code Inspector variants (ending with ===VC)
-        INSERT REPORT is_progdir-name
-         FROM it_source
-         STATE 'I'
-         EXTENSION TYPE is_progdir-name+30.
-        IF sy-subrc <> 0.
-          zcx_abapgit_exception=>raise( 'error from INSERT REPORT .. EXTENSION TYPE' ).
-        ENDIF.
-      ELSE.
-        INSERT REPORT is_progdir-name
-          FROM it_source
-          STATE 'I'
-          PROGRAM TYPE is_progdir-subc.
-        IF sy-subrc <> 0.
-          zcx_abapgit_exception=>raise( 'error from INSERT REPORT' ).
-        ENDIF.
+      " special treatment for extensions
+      " if the program name exceeds 30 characters it is not a usual
+      " ABAP program but might be some extension, which requires the internal
+      " addition EXTENSION TYPE, see
+      " http://help.sap.com/abapdocu_751/en/abapinsert_report_internal.htm#!ABAP_ADDITION_1@1@
+      " This e.g. occurs in case of transportable Code Inspector variants (ending with ===VC)
+      INSERT REPORT is_progdir-name
+       FROM it_source
+       STATE 'I'
+       EXTENSION TYPE is_progdir-name+30.
+      IF sy-subrc <> 0.
+        zcx_abapgit_exception=>raise( 'error from INSERT REPORT .. EXTENSION TYPE' ).
+      ENDIF.
+    ELSE.
+      INSERT REPORT is_progdir-name
+        FROM it_source
+        STATE 'I'
+        PROGRAM TYPE is_progdir-subc.
+      IF sy-subrc <> 0.
+        zcx_abapgit_exception=>raise( 'error from INSERT REPORT' ).
       ENDIF.
     ENDIF.
 
@@ -426,7 +494,7 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
       iv_type = 'REPS'
       iv_name = is_progdir-name ).
 
-  ENDMETHOD.                    "deserialize_program
+  ENDMETHOD.
 
   METHOD read_progdir.
 
@@ -454,7 +522,7 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
            rs_progdir-idate,
            rs_progdir-itime.
 
-  ENDMETHOD.                    "read_progdir
+  ENDMETHOD.
 
   METHOD serialize_cua.
 
@@ -485,7 +553,7 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'error from RS_CUA_INTERNAL_FETCH' ).
     ENDIF.
 
-  ENDMETHOD.                    "serialize_cua
+  ENDMETHOD.
 
   METHOD serialize_dynpros.
 
@@ -557,7 +625,7 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
 
     ENDLOOP.
 
-  ENDMETHOD.                    "serialize_dynpros
+  ENDMETHOD.
 
 
   METHOD deserialize_dynpros.
@@ -594,7 +662,7 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
           illegal_field_position = 9
           OTHERS                 = 10.
       IF sy-subrc <> 2 AND sy-subrc <> 0.
-        zcx_abapgit_exception=>raise( 'error from RPY_DYNPRO_INSERT' ).
+        zcx_abapgit_exception=>raise( |error from RPY_DYNPRO_INSERT: { sy-subrc }| ).
       ENDIF.
 * todo, RPY_DYNPRO_UPDATE?
 
@@ -608,7 +676,7 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
 
     ENDLOOP.
 
-  ENDMETHOD.                    "deserialize_dynpros
+  ENDMETHOD.
 
   METHOD add_tpool.
 
@@ -625,7 +693,7 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-  ENDMETHOD.                    "add_tpool
+  ENDMETHOD.
 
   METHOD read_tpool.
 
@@ -643,7 +711,7 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-  ENDMETHOD.                    "read_tpool
+  ENDMETHOD.
 
   METHOD deserialize_textpool.
 
@@ -699,11 +767,12 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
         iv_name   = iv_program
         iv_delete = lv_delete ).
     ENDIF.
-  ENDMETHOD.                    "deserialize_textpool
+  ENDMETHOD.
 
   METHOD deserialize_cua.
 
-    DATA: ls_tr_key TYPE trkey.
+    DATA: ls_tr_key TYPE trkey,
+          ls_adm    TYPE rsmpe_adm.
 
 
     IF lines( is_cua-sta ) = 0
@@ -734,13 +803,17 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
     ls_tr_key-sub_type = 'CUAD'.
     ls_tr_key-sub_name = iv_program_name.
 
+
+    ls_adm = is_cua-adm.
+    auto_correct_cua_adm( EXPORTING is_cua = is_cua CHANGING cs_adm = ls_adm ).
+
     sy-tcode = 'SE41' ##write_ok. " evil hack, workaround to handle fixes in note 2159455
     CALL FUNCTION 'RS_CUA_INTERNAL_WRITE'
       EXPORTING
         program   = iv_program_name
         language  = mv_language
         tr_key    = ls_tr_key
-        adm       = is_cua-adm
+        adm       = ls_adm
         state     = 'I'
       TABLES
         sta       = is_cua-sta
@@ -766,7 +839,7 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
       iv_type = 'CUAD'
       iv_name = iv_program_name ).
 
-  ENDMETHOD.                    "deserialize_cua
+  ENDMETHOD.
 
   METHOD check_prog_changed_since.
 
@@ -842,6 +915,38 @@ CLASS zcl_abapgit_objects_program IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-  ENDMETHOD.  "check_prog_changed_since
+  ENDMETHOD.
 
-ENDCLASS.                    "zcl_abapgit_objects_program IMPLEMENTATION
+
+  METHOD auto_correct_cua_adm.
+    " issue #1807 automatic correction of CUA interfaces saved incorrectly in the past (ADM was not saved in the XML)
+    FIELD-SYMBOLS:
+      <ls_pfk> TYPE rsmpe_pfk,
+      <ls_act> TYPE rsmpe_act,
+      <ls_men> TYPE rsmpe_men.
+
+    IF cs_adm IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_cua-act ASSIGNING <ls_act>.
+      IF <ls_act>-code+6(14) IS INITIAL AND <ls_act>-code(6) CO '0123456789'.
+        cs_adm-actcode = <ls_act>-code.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_cua-men ASSIGNING <ls_men>.
+      IF <ls_men>-code+6(14) IS INITIAL AND <ls_men>-code(6) CO '0123456789'.
+        cs_adm-mencode = <ls_men>-code.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_cua-pfk ASSIGNING <ls_pfk>.
+      IF <ls_pfk>-code+6(14) IS INITIAL AND <ls_pfk>-code(6) CO '0123456789'.
+        cs_adm-pfkcode = <ls_pfk>-code.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+ENDCLASS.

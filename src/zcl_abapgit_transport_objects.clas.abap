@@ -7,7 +7,7 @@ CLASS zcl_abapgit_transport_objects DEFINITION
 
     METHODS constructor
       IMPORTING
-        !it_transport_objects TYPE scts_tadir .
+        !it_transport_objects TYPE zif_abapgit_definitions=>ty_tadir_tt .
     METHODS to_stage
       IMPORTING
         !io_stage           TYPE REF TO zcl_abapgit_stage
@@ -16,8 +16,8 @@ CLASS zcl_abapgit_transport_objects DEFINITION
       RAISING
         zcx_abapgit_exception .
   PRIVATE SECTION.
-    DATA mt_transport_objects TYPE scts_tadir.
 
+    DATA mt_transport_objects TYPE zif_abapgit_definitions=>ty_tadir_tt .
 ENDCLASS.
 
 
@@ -31,7 +31,7 @@ CLASS ZCL_ABAPGIT_TRANSPORT_OBJECTS IMPLEMENTATION.
 
 
   METHOD to_stage.
-    DATA: ls_transport_object TYPE tadir,
+    DATA: ls_transport_object LIKE LINE OF mt_transport_objects,
           ls_local_file       TYPE zif_abapgit_definitions=>ty_file_item,
           ls_object_status    TYPE zif_abapgit_definitions=>ty_result.
 
@@ -42,7 +42,7 @@ CLASS ZCL_ABAPGIT_TRANSPORT_OBJECTS IMPLEMENTATION.
           AND NOT lstate IS INITIAL.
 
         CASE ls_object_status-lstate.
-          WHEN zif_abapgit_definitions=>gc_state-added OR zif_abapgit_definitions=>gc_state-modified.
+          WHEN zif_abapgit_definitions=>c_state-added OR zif_abapgit_definitions=>c_state-modified.
             IF ls_transport_object-delflag = abap_true.
               zcx_abapgit_exception=>raise( |Object { ls_transport_object-obj_name
               } should be added/modified, but has deletion flag in transport| ).
@@ -62,7 +62,7 @@ CLASS ZCL_ABAPGIT_TRANSPORT_OBJECTS IMPLEMENTATION.
               iv_path     = ls_local_file-file-path
               iv_filename = ls_local_file-file-filename
               iv_data     = ls_local_file-file-data ).
-          WHEN zif_abapgit_definitions=>gc_state-deleted.
+          WHEN zif_abapgit_definitions=>c_state-deleted.
             IF ls_transport_object-delflag = abap_false.
               zcx_abapgit_exception=>raise( |Object { ls_transport_object-obj_name
               } should be removed, but has NO deletion flag in transport| ).

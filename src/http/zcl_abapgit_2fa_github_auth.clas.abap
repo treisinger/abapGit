@@ -60,7 +60,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_2fa_github_auth IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_2FA_GITHUB_AUTH IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -210,7 +210,7 @@ CLASS zcl_abapgit_2fa_github_auth IMPLEMENTATION.
     " 2. Create an access token which can be used instead of a password
     " https://developer.github.com/v3/oauth_authorizations/#create-a-new-authorization
 
-    set_new_token_request( ii_request = li_http_client->request ).
+    set_new_token_request( li_http_client->request ).
 
     li_http_client->send( EXCEPTIONS OTHERS = 1 ).
     IF sy-subrc <> 0.
@@ -336,6 +336,8 @@ CLASS zcl_abapgit_2fa_github_auth IMPLEMENTATION.
 
     li_client->receive( EXCEPTIONS OTHERS = 1 ).
     IF sy-subrc <> 0.
+* if the code fails here with a SSL error, make sure STRUST is setup to
+* work with https://api.github.com
       raise_comm_error_from_sy( ).
     ENDIF.
 

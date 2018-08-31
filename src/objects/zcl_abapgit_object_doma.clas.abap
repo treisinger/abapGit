@@ -21,6 +21,7 @@ CLASS zcl_abapgit_object_doma DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
            END OF ty_dd07_texts,
            tt_dd01_texts TYPE STANDARD TABLE OF ty_dd01_texts,
            tt_dd07_texts TYPE STANDARD TABLE OF ty_dd07_texts.
+    CONSTANTS: c_longtext_id_doma TYPE dokil-id VALUE 'DO'.
 
     METHODS:
       serialize_texts
@@ -105,7 +106,7 @@ CLASS zcl_abapgit_object_doma IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-  ENDMETHOD.  "deserialize_texts
+  ENDMETHOD.
 
 
   METHOD serialize_texts.
@@ -176,7 +177,7 @@ CLASS zcl_abapgit_object_doma IMPLEMENTATION.
                    ig_data = lt_dd07_texts ).
     ENDIF.
 
-  ENDMETHOD.  "serialize_texts
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~changed_by.
@@ -223,27 +224,26 @@ CLASS zcl_abapgit_object_doma IMPLEMENTATION.
 
       CATCH cx_sy_dyn_call_param_not_found.
 
-        TRY.
-            CALL FUNCTION 'RS_DD_DELETE_OBJ'
-              EXPORTING
-                no_ask               = abap_true
-                objname              = lv_objname
-                objtype              = 'D'
-*               no_ask_delete_append = abap_true parameter not available in lower NW versions
-              EXCEPTIONS
-                not_executed         = 1
-                object_not_found     = 2
-                object_not_specified = 3
-                permission_failure   = 4.
-            IF sy-subrc <> 0.
-              zcx_abapgit_exception=>raise( 'error from RS_DD_DELETE_OBJ, DOMA' ).
-            ENDIF.
-
-        ENDTRY.
+        CALL FUNCTION 'RS_DD_DELETE_OBJ'
+          EXPORTING
+            no_ask               = abap_true
+            objname              = lv_objname
+            objtype              = 'D'
+*           no_ask_delete_append = abap_true parameter not available in lower NW versions
+          EXCEPTIONS
+            not_executed         = 1
+            object_not_found     = 2
+            object_not_specified = 3
+            permission_failure   = 4.
+        IF sy-subrc <> 0.
+          zcx_abapgit_exception=>raise( 'error from RS_DD_DELETE_OBJ, DOMA' ).
+        ENDIF.
 
     ENDTRY.
 
-  ENDMETHOD.                    "delete
+    delete_longtexts( c_longtext_id_doma ).
+
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~deserialize.
@@ -289,9 +289,11 @@ CLASS zcl_abapgit_object_doma IMPLEMENTATION.
                        is_dd01v = ls_dd01v
                        it_dd07v = lt_dd07v ).
 
+    deserialize_longtexts( io_xml ).
+
     zcl_abapgit_objects_activation=>add_item( ms_item ).
 
-  ENDMETHOD.                    "deserialize
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~exists.
@@ -305,13 +307,13 @@ CLASS zcl_abapgit_object_doma IMPLEMENTATION.
       AND as4vers = '0000'.
     rv_bool = boolc( sy-subrc = 0 ).
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
     rs_metadata-ddic = abap_true.
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~has_changed_since.
@@ -330,7 +332,7 @@ CLASS zcl_abapgit_object_doma IMPLEMENTATION.
       iv_date      = lv_date
       iv_time      = lv_time ).
 
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~jump.
@@ -338,7 +340,7 @@ CLASS zcl_abapgit_object_doma IMPLEMENTATION.
     jump_se11( iv_radio = 'RSRD1-DOMA'
                iv_field = 'RSRD1-DOMA_VAL' ).
 
-  ENDMETHOD.                    "jump
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~serialize.
@@ -391,5 +393,16 @@ CLASS zcl_abapgit_object_doma IMPLEMENTATION.
 
     serialize_texts( io_xml ).
 
-  ENDMETHOD.                    "serialize
+    serialize_longtexts( io_xml         = io_xml
+                         iv_longtext_id = c_longtext_id_doma ).
+
+  ENDMETHOD.
+
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = 'ESDICT'
+                                            iv_argument    = |{ ms_item-obj_type }{ ms_item-obj_name }| ).
+
+  ENDMETHOD.
+
 ENDCLASS.

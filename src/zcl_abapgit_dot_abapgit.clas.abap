@@ -42,15 +42,19 @@ CLASS zcl_abapgit_dot_abapgit DEFINITION
     METHODS get_starting_folder
       RETURNING
         VALUE(rv_path) TYPE string .
+
     METHODS get_folder_logic
       RETURNING
         VALUE(rv_logic) TYPE string .
+
     METHODS set_folder_logic
       IMPORTING
         !iv_logic TYPE string .
+
     METHODS set_starting_folder
       IMPORTING
         !iv_path TYPE string .
+
     METHODS get_master_language
       RETURNING
         VALUE(rv_language) TYPE spras .
@@ -61,6 +65,12 @@ CLASS zcl_abapgit_dot_abapgit DEFINITION
         VALUE(rs_signature) TYPE zif_abapgit_definitions=>ty_file_signature
       RAISING
         zcx_abapgit_exception .
+    METHODS get_requirements
+      RETURNING
+        VALUE(rt_requirements) TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt.
+    METHODS set_requirements
+      IMPORTING
+        it_requirements TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt.
   PRIVATE SECTION.
     DATA: ms_data TYPE zif_abapgit_dot_abapgit=>ty_dot_abapgit.
 
@@ -77,7 +87,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_DOT_ABAPGIT IMPLEMENTATION.
+CLASS zcl_abapgit_dot_abapgit IMPLEMENTATION.
 
 
   METHOD add_ignore.
@@ -184,9 +194,9 @@ CLASS ZCL_ABAPGIT_DOT_ABAPGIT IMPLEMENTATION.
 
   METHOD get_signature.
 
-    rs_signature-path     = zif_abapgit_definitions=>gc_root_dir.
-    rs_signature-filename = zif_abapgit_definitions=>gc_dot_abapgit.
-    rs_signature-sha1     = zcl_abapgit_hash=>sha1( iv_type = zif_abapgit_definitions=>gc_type-blob
+    rs_signature-path     = zif_abapgit_definitions=>c_root_dir.
+    rs_signature-filename = zif_abapgit_definitions=>c_dot_abapgit.
+    rs_signature-sha1     = zcl_abapgit_hash=>sha1( iv_type = zif_abapgit_definitions=>c_type-blob
                                                     iv_data = serialize( ) ).
 
   ENDMETHOD. "get_signature
@@ -209,7 +219,7 @@ CLASS ZCL_ABAPGIT_DOT_ABAPGIT IMPLEMENTATION.
     lv_name = iv_path && iv_filename.
 
     CONCATENATE ms_data-starting_folder '*' INTO lv_starting.
-    CONCATENATE '/' zif_abapgit_definitions=>gc_dot_abapgit INTO lv_dot.
+    CONCATENATE '/' zif_abapgit_definitions=>c_dot_abapgit INTO lv_dot.
 
     LOOP AT ms_data-ignore INTO lv_ignore.
       FIND ALL OCCURRENCES OF '/' IN lv_name MATCH COUNT lv_count.
@@ -275,5 +285,13 @@ CLASS ZCL_ABAPGIT_DOT_ABAPGIT IMPLEMENTATION.
       WITH '<?xml version="1.0" encoding="utf-8"?>'.
     ASSERT sy-subrc = 0.
 
+  ENDMETHOD.
+
+  METHOD get_requirements.
+    rt_requirements = ms_data-requirements.
+  ENDMETHOD.
+
+  METHOD set_requirements.
+    ms_data-requirements = it_requirements.
   ENDMETHOD.
 ENDCLASS.

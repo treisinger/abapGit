@@ -52,7 +52,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECTS_SAXX_SUPER IMPLEMENTATION.
+CLASS zcl_abapgit_objects_saxx_super IMPLEMENTATION.
 
 
   METHOD create_channel_objects.
@@ -142,7 +142,7 @@ CLASS ZCL_ABAPGIT_OBJECTS_SAXX_SUPER IMPLEMENTATION.
       zcx_abapgit_exception=>raise( |Error occured while locking { ms_item-obj_type } | && lv_objname ).
     ENDIF.
 
-  ENDMETHOD.                    "lock
+  ENDMETHOD.
 
 
   METHOD unlock.
@@ -159,7 +159,7 @@ CLASS ZCL_ABAPGIT_OBJECTS_SAXX_SUPER IMPLEMENTATION.
                             p_object_key = lv_object_key
                             p_objtype_tr = lv_objtype ).
 
-  ENDMETHOD.                    "unlock
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~changed_by.
@@ -391,4 +391,11 @@ CLASS ZCL_ABAPGIT_OBJECTS_SAXX_SUPER IMPLEMENTATION.
                  ig_data = <lg_data> ).
 
   ENDMETHOD.
+
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = abap_false.
+
+  ENDMETHOD.
+
 ENDCLASS.

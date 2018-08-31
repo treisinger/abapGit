@@ -10,7 +10,7 @@ CLASS zcl_abapgit_object_para IMPLEMENTATION.
 
   METHOD zif_abapgit_object~has_changed_since.
     rv_changed = abap_true.
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~changed_by.
 * looks like "changed by user" is not stored in the database
@@ -19,7 +19,9 @@ CLASS zcl_abapgit_object_para IMPLEMENTATION.
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+* Data elements can refer to PARA objects
+    rs_metadata-ddic = abap_true.
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~exists.
 
@@ -30,7 +32,7 @@ CLASS zcl_abapgit_object_para IMPLEMENTATION.
       WHERE paramid = ms_item-obj_name.                 "#EC CI_GENBUFF
     rv_bool = boolc( sy-subrc = 0 ).
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~serialize.
 
@@ -53,7 +55,7 @@ CLASS zcl_abapgit_object_para IMPLEMENTATION.
     io_xml->add( iv_name = 'TPARAT'
                  ig_data = ls_tparat ).
 
-  ENDMETHOD.                    "serialize
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~deserialize.
 * see fm RS_PARAMETER_ADD and RS_PARAMETER_EDIT
@@ -99,25 +101,82 @@ CLASS zcl_abapgit_object_para IMPLEMENTATION.
     MODIFY tparat FROM ls_tparat.                         "#EC CI_SUBRC
     ASSERT sy-subrc = 0.
 
-  ENDMETHOD.                    "deserialize
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~delete.
 
-    DATA: lv_paramid TYPE tpara-paramid.
+    " We can't use FM RS_PARAMETER_DELETE because of the popup to confirm
+    "Therefore we have to reimplement most of the FMs logic
 
+    DATA: lv_paramid   TYPE tpara-paramid,
+          ls_transpkey TYPE trkey.
 
     lv_paramid = ms_item-obj_name.
-    CALL FUNCTION 'RS_PARAMETER_DELETE'
+
+    CALL FUNCTION 'RS_ACCESS_PERMISSION'
       EXPORTING
-        objectname = lv_paramid
+        global_lock              = abap_true
+        language_upd_exit        = 'RS_PARAMETER_LANGUAGE_EXIT'    " Name FuBa for maintenance language change
+        object                   = lv_paramid
+        object_class             = ms_item-obj_type
+        suppress_language_check  = space
       EXCEPTIONS
-        cancelled  = 1
-        OTHERS     = 2.
+        canceled_in_corr         = 1
+        enqueued_by_user         = 2
+        enqueue_system_failure   = 3
+        illegal_parameter_values = 4
+        locked_by_author         = 5
+        no_modify_permission     = 6
+        no_show_permission       = 7
+        permission_failure       = 8
+        request_language_denied  = 9
+        OTHERS                   = 10.
     IF sy-subrc <> 0.
       zcx_abapgit_exception=>raise( 'error from RS_PRAMETER_DELETE' ).
     ENDIF.
 
-  ENDMETHOD.                    "delete
+    SELECT COUNT(*) FROM cross WHERE ( type = 'P' OR
+                               type = 'Q' )
+                              AND name   = lv_paramid.
+    IF sy-subrc = 0.
+      zcx_abapgit_exception=>raise( 'PARA: Parameter is still used' ).
+    ELSE.
+      SELECT COUNT(*) FROM dd04l BYPASSING BUFFER
+      WHERE  memoryid = lv_paramid
+      AND as4local = 'A'.
+      IF sy-subrc = 0.
+        zcx_abapgit_exception=>raise( 'PARA: Parameter is still used' ).
+      ENDIF.
+    ENDIF.
+    CALL FUNCTION 'RS_CORR_INSERT'
+      EXPORTING
+        global_lock         = abap_true
+        object              = lv_paramid
+        object_class        = 'PARA'
+        mode                = 'D'
+      IMPORTING
+        transport_key       = ls_transpkey
+      EXCEPTIONS
+        cancelled           = 01
+        permission_failure  = 02
+        unknown_objectclass = 03.
+
+    IF sy-subrc = 0.
+      DELETE FROM tpara WHERE paramid = lv_paramid.
+      DELETE FROM tparat WHERE paramid = lv_paramid.
+
+      IF sy-subrc = 0.
+        CALL FUNCTION 'RS_TREE_OBJECT_PLACEMENT'
+          EXPORTING
+            object    = lv_paramid
+            operation = 'DELETE'
+            type      = 'CR'.
+      ENDIF.
+    ELSE.
+      zcx_abapgit_exception=>raise( 'error from RS_PRAMETER_DELETE' ).
+    ENDIF.
+
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~jump.
 
@@ -128,10 +187,16 @@ CLASS zcl_abapgit_object_para IMPLEMENTATION.
         object_type   = 'PARA'
         in_new_window = abap_true.
 
-  ENDMETHOD.                    "jump
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~compare_to_remote_version.
     CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
-ENDCLASS.                    "zcl_abapgit_object_para IMPLEMENTATION
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = abap_false.
+
+  ENDMETHOD.
+
+ENDCLASS.

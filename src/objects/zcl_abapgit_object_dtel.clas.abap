@@ -15,6 +15,7 @@ CLASS zcl_abapgit_object_dtel DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
              scrtext_l  TYPE dd04t-scrtext_l,
            END OF ty_dd04_texts,
            tt_dd04_texts TYPE STANDARD TABLE OF ty_dd04_texts.
+    CONSTANTS: c_longtext_id_dtel TYPE dokil-id VALUE 'DE'.
 
     METHODS:
       serialize_texts
@@ -29,7 +30,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_DTEL IMPLEMENTATION.
+CLASS zcl_abapgit_object_dtel IMPLEMENTATION.
 
 
   METHOD deserialize_texts.
@@ -176,7 +177,9 @@ CLASS ZCL_ABAPGIT_OBJECT_DTEL IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'error from RS_DD_DELETE_OBJ, DTEL' ).
     ENDIF.
 
-  ENDMETHOD.                    "delete
+    delete_longtexts( c_longtext_id_dtel ).
+
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~deserialize.
@@ -213,9 +216,11 @@ CLASS ZCL_ABAPGIT_OBJECT_DTEL IMPLEMENTATION.
     deserialize_texts( io_xml   = io_xml
                        is_dd04v = ls_dd04v ).
 
+    deserialize_longtexts( io_xml ).
+
     zcl_abapgit_objects_activation=>add_item( ms_item ).
 
-  ENDMETHOD.                    "deserialize
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~exists.
@@ -229,13 +234,13 @@ CLASS ZCL_ABAPGIT_OBJECT_DTEL IMPLEMENTATION.
       AND as4vers = '0000'.
     rv_bool = boolc( sy-subrc = 0 ).
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
     rs_metadata-ddic = abap_true.
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~has_changed_since.
@@ -254,7 +259,7 @@ CLASS ZCL_ABAPGIT_OBJECT_DTEL IMPLEMENTATION.
       iv_date      = lv_date
       iv_time      = lv_time ).
 
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~jump.
@@ -262,7 +267,7 @@ CLASS ZCL_ABAPGIT_OBJECT_DTEL IMPLEMENTATION.
     jump_se11( iv_radio = 'RSRD1-DDTYPE'
                iv_field = 'RSRD1-DDTYPE_VAL' ).
 
-  ENDMETHOD.                    "jump
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~serialize.
@@ -333,5 +338,17 @@ CLASS ZCL_ABAPGIT_OBJECT_DTEL IMPLEMENTATION.
 
     serialize_texts( io_xml ).
 
-  ENDMETHOD.                    "serialize
+    serialize_longtexts( io_xml         = io_xml
+                         iv_longtext_id = c_longtext_id_dtel ).
+
+  ENDMETHOD.
+
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = 'ESDICT'
+                                            iv_argument    = |{ ms_item-obj_type }{ ms_item-obj_name }| ).
+
+  ENDMETHOD.
+
+
 ENDCLASS.

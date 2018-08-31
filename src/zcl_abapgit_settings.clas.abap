@@ -76,7 +76,41 @@ CLASS zcl_abapgit_settings DEFINITION PUBLIC CREATE PUBLIC.
       set_defaults,
       set_user_settings
         IMPORTING
-          is_user_settings TYPE zif_abapgit_definitions=>ty_s_user_settings.
+          is_user_settings TYPE zif_abapgit_definitions=>ty_s_user_settings,
+      get_show_default_repo
+        RETURNING
+          VALUE(rv_show_default_repo) TYPE abap_bool,
+      set_show_default_repo
+        IMPORTING
+          iv_show_default_repo TYPE abap_bool,
+      set_link_hints_enabled
+        IMPORTING
+          iv_link_hints_enabled TYPE abap_bool,
+      get_link_hints_enabled
+        RETURNING
+          VALUE(rv_link_hints_enabled) TYPE abap_bool
+        RAISING
+          zcx_abapgit_exception,
+      set_link_hint_key
+        IMPORTING
+          iv_link_hint_key TYPE char01,
+      get_link_hint_key
+        RETURNING
+          VALUE(rv_link_hint_key) TYPE char01,
+      get_link_hint_background_color
+        RETURNING
+          VALUE(rv_background_color) TYPE string,
+      set_link_hint_background_color
+        IMPORTING
+          iv_background_color TYPE string,
+      set_hotkeys
+        IMPORTING
+          it_hotkeys TYPE zif_abapgit_definitions=>tty_hotkey,
+      get_hotkeys
+        RETURNING
+          VALUE(rt_hotkeys) TYPE zif_abapgit_definitions=>tty_hotkey
+        RAISING
+          zcx_abapgit_exception.
 
   PRIVATE SECTION.
     TYPES: BEGIN OF ty_s_settings,
@@ -88,8 +122,13 @@ CLASS zcl_abapgit_settings DEFINITION PUBLIC CREATE PUBLIC.
              commitmsg_comment_length TYPE i,
              commitmsg_body_size      TYPE i,
            END OF ty_s_settings.
+
     DATA: ms_settings      TYPE ty_s_settings,
           ms_user_settings TYPE zif_abapgit_definitions=>ty_s_user_settings.
+
+    METHODS:
+      set_default_link_hint_key,
+      set_default_link_hint_bg_color.
 
 ENDCLASS.
 
@@ -115,6 +154,16 @@ CLASS zcl_abapgit_settings IMPLEMENTATION.
 
   METHOD get_experimental_features.
     rv_run = ms_settings-experimental_features.
+  ENDMETHOD.
+
+
+  METHOD get_link_hints_enabled.
+    rv_link_hints_enabled = ms_user_settings-link_hints_enabled.
+  ENDMETHOD.
+
+
+  METHOD get_link_hint_key.
+    rv_link_hint_key = ms_user_settings-link_hint_key.
   ENDMETHOD.
 
 
@@ -158,6 +207,15 @@ CLASS zcl_abapgit_settings IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD get_show_default_repo.
+    rv_show_default_repo = ms_user_settings-show_default_repo.
+  ENDMETHOD.
+
+
+  METHOD get_user_settings.
+    rs_settings = ms_user_settings.
+  ENDMETHOD.
+
 
   METHOD set_adt_jump_enanbled.
     ms_user_settings-adt_jump_enabled = iv_adt_jump_enabled.
@@ -182,15 +240,38 @@ CLASS zcl_abapgit_settings IMPLEMENTATION.
     set_run_critical_tests( abap_false ).
     set_experimental_features( abap_false ).
     set_max_lines( 500 ).
-    set_adt_jump_enanbled( abap_false ).
+    set_adt_jump_enanbled( abap_true ).
+    set_show_default_repo( abap_false ).
     set_commitmsg_comment_length( c_commitmsg_comment_length_dft ).
     set_commitmsg_body_size( c_commitmsg_body_size_dft ).
+    set_default_link_hint_key( ).
+    set_default_link_hint_bg_color( ).
 
+  ENDMETHOD.
+
+
+  METHOD set_default_link_hint_bg_color.
+    set_link_hint_background_color( |lightgreen| ).
+  ENDMETHOD.
+
+
+  METHOD set_default_link_hint_key.
+    set_link_hint_key( |f| ).
   ENDMETHOD.
 
 
   METHOD set_experimental_features.
     ms_settings-experimental_features = iv_run.
+  ENDMETHOD.
+
+
+  METHOD set_link_hints_enabled.
+    ms_user_settings-link_hints_enabled = iv_link_hints_enabled.
+  ENDMETHOD.
+
+
+  METHOD set_link_hint_key.
+    ms_user_settings-link_hint_key = iv_link_hint_key.
   ENDMETHOD.
 
 
@@ -219,8 +300,21 @@ CLASS zcl_abapgit_settings IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD set_show_default_repo.
+    ms_user_settings-show_default_repo = iv_show_default_repo.
+  ENDMETHOD.
+
+
   METHOD set_user_settings.
     ms_user_settings = is_user_settings.
+
+    IF ms_user_settings-link_hint_key IS INITIAL.
+      set_default_link_hint_key( ).
+    ENDIF.
+
+    IF ms_user_settings-link_hint_background_color IS INITIAL.
+      set_default_link_hint_bg_color( ).
+    ENDIF.
   ENDMETHOD.
 
 
@@ -241,8 +335,46 @@ CLASS zcl_abapgit_settings IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD get_user_settings.
-    rs_settings = ms_user_settings.
+  METHOD get_link_hint_background_color.
+    rv_background_color = ms_user_settings-link_hint_background_color.
+  ENDMETHOD.
+
+
+  METHOD set_link_hint_background_color.
+    ms_user_settings-link_hint_background_color = iv_background_color.
+  ENDMETHOD.
+
+
+  METHOD set_hotkeys.
+    ms_user_settings-hotkeys = it_hotkeys.
+  ENDMETHOD.
+
+  METHOD get_hotkeys.
+
+    DATA: lt_default_hotkeys TYPE zif_abapgit_gui_page_hotkey=>tty_hotkey_action,
+          ls_hotkey          LIKE LINE OF rt_hotkeys.
+
+    FIELD-SYMBOLS: <ls_default_hotkey> LIKE LINE OF lt_default_hotkeys.
+
+    IF lines( ms_user_settings-hotkeys ) > 0.
+
+      rt_hotkeys = ms_user_settings-hotkeys.
+
+    ELSE.
+
+      " provide default hotkeys
+      lt_default_hotkeys = zcl_abapgit_hotkeys=>get_default_hotkeys_from_pages( ).
+
+      LOOP AT lt_default_hotkeys ASSIGNING <ls_default_hotkey>.
+
+        ls_hotkey-action   = <ls_default_hotkey>-action.
+        ls_hotkey-sequence = <ls_default_hotkey>-default_hotkey.
+        INSERT ls_hotkey INTO TABLE rt_hotkeys.
+
+      ENDLOOP.
+
+    ENDIF.
+
   ENDMETHOD.
 
 ENDCLASS.

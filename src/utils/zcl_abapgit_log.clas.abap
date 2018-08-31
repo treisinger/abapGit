@@ -1,43 +1,62 @@
-CLASS zcl_abapgit_log DEFINITION PUBLIC CREATE PUBLIC.
+CLASS zcl_abapgit_log DEFINITION
+  PUBLIC
+  CREATE PUBLIC .
 
   PUBLIC SECTION.
-    METHODS:
-      add
-        IMPORTING
-          iv_msg  TYPE csequence
-          iv_type TYPE symsgty   DEFAULT 'E'
-          iv_rc   TYPE balsort   OPTIONAL,
-      count
-        RETURNING VALUE(rv_count) TYPE i,
-      to_html
-        RETURNING VALUE(ro_html) TYPE REF TO zcl_abapgit_html,
-      clear,
-      has_rc "For unit tests mainly
-        IMPORTING iv_rc         TYPE balsort
-        RETURNING VALUE(rv_yes) TYPE abap_bool,
-      show.
 
-  PRIVATE SECTION.
-    TYPES: BEGIN OF ty_log,
-             msg  TYPE string,
-             type TYPE symsgty,
-             rc   TYPE balsort,
-           END OF ty_log,
-           BEGIN OF ty_log_out,
-             type TYPE icon_d,
-             msg  TYPE string,
-           END OF ty_log_out,
-           tty_log_out TYPE STANDARD TABLE OF ty_log_out
-                            WITH NON-UNIQUE DEFAULT KEY.
+    METHODS add
+      IMPORTING
+        !iv_msg  TYPE csequence
+        !iv_type TYPE symsgty DEFAULT 'E'
+        !iv_rc   TYPE balsort OPTIONAL .
+    METHODS add_error
+      IMPORTING
+        !iv_msg TYPE csequence .
+    METHODS add_info
+      IMPORTING
+        !iv_msg TYPE csequence .
+    METHODS add_warning
+      IMPORTING
+        !iv_msg TYPE csequence .
+    METHODS clear .
+    METHODS count
+      RETURNING
+        VALUE(rv_count) TYPE i .
+    METHODS has_rc
+      IMPORTING
+        !iv_rc        TYPE balsort
+      RETURNING
+        VALUE(rv_yes) TYPE abap_bool .
+    METHODS show
+      IMPORTING
+        !iv_header_text TYPE csequence DEFAULT 'Log' .
+    METHODS to_html
+      RETURNING
+        VALUE(ro_html) TYPE REF TO zcl_abapgit_html .
+    METHODS write .
+  PROTECTED SECTION.
 
+    TYPES:
+      BEGIN OF ty_log,
+        msg  TYPE string,
+        type TYPE symsgty,
+        rc   TYPE balsort,
+      END OF ty_log .
+    TYPES:
+      BEGIN OF ty_log_out,
+        type TYPE icon_d,
+        msg  TYPE string,
+      END OF ty_log_out .
+    TYPES:
+      tty_log_out TYPE STANDARD TABLE OF ty_log_out
+                              WITH NON-UNIQUE DEFAULT KEY .
 
-    DATA: mt_log TYPE STANDARD TABLE OF ty_log WITH DEFAULT KEY.
+    DATA:
+      mt_log TYPE STANDARD TABLE OF ty_log WITH DEFAULT KEY .
 
-    METHODS:
-      prepare_log_for_display
-        RETURNING
-          VALUE(rt_log_out) TYPE zcl_abapgit_log=>tty_log_out.
-
+    METHODS prepare_log_for_display
+      RETURNING
+        VALUE(rt_log_out) TYPE zcl_abapgit_log=>tty_log_out .
 ENDCLASS.
 
 
@@ -57,6 +76,30 @@ CLASS zcl_abapgit_log IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD add_error.
+
+    add( iv_msg  = iv_msg
+         iv_type = 'E' ).
+
+  ENDMETHOD.
+
+
+  METHOD add_info.
+
+    add( iv_msg  = iv_msg
+         iv_type = 'I' ).
+
+  ENDMETHOD.
+
+
+  METHOD add_warning.
+
+    add( iv_msg  = iv_msg
+         iv_type = 'W' ).
+
+  ENDMETHOD.
+
+
   METHOD clear.
     CLEAR mt_log.
   ENDMETHOD.
@@ -68,6 +111,8 @@ CLASS zcl_abapgit_log IMPLEMENTATION.
 
 
   METHOD has_rc.
+* todo, this method is only used in unit tests
+
     READ TABLE mt_log WITH KEY rc = iv_rc TRANSPORTING NO FIELDS.
     rv_yes = boolc( sy-subrc = 0 ).
   ENDMETHOD.
@@ -142,7 +187,7 @@ CLASS zcl_abapgit_log IMPLEMENTATION.
 
         CREATE OBJECT lo_form_header
           EXPORTING
-            text = |Log|.
+            text = iv_header_text.
 
         lo_alv->set_top_of_list( lo_form_header ).
 
@@ -185,6 +230,20 @@ CLASS zcl_abapgit_log IMPLEMENTATION.
       ro_html->add_icon( lv_icon ).
       ro_html->add( <ls_log>-msg ).
       ro_html->add( '</span>' ).
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD write.
+
+    DATA: ls_log  LIKE LINE OF mt_log,
+          lv_text TYPE string.
+
+
+    LOOP AT mt_log INTO ls_log.
+      lv_text = |{ ls_log-type }: { ls_log-msg }|.
+      WRITE: / lv_text.
     ENDLOOP.
 
   ENDMETHOD.

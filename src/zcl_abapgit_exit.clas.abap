@@ -14,7 +14,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_EXIT IMPLEMENTATION.
+CLASS zcl_abapgit_exit IMPLEMENTATION.
 
 
   METHOD get_instance.
@@ -58,7 +58,7 @@ CLASS ZCL_ABAPGIT_EXIT IMPLEMENTATION.
           EXPORTING
             iv_repo_url            = iv_repo_url
           CHANGING
-            c_proxy_authentication = c_proxy_authentication ).
+            cv_proxy_authentication = cv_proxy_authentication ).
       CATCH cx_sy_ref_is_initial cx_sy_dyn_call_illegal_method.
     ENDTRY.
 
@@ -72,7 +72,7 @@ CLASS ZCL_ABAPGIT_EXIT IMPLEMENTATION.
           EXPORTING
             iv_repo_url  = iv_repo_url
           CHANGING
-            c_proxy_port = c_proxy_port ).
+            cv_proxy_port = cv_proxy_port ).
       CATCH cx_sy_ref_is_initial cx_sy_dyn_call_illegal_method.
     ENDTRY.
 
@@ -86,7 +86,17 @@ CLASS ZCL_ABAPGIT_EXIT IMPLEMENTATION.
           EXPORTING
             iv_repo_url = iv_repo_url
           CHANGING
-            c_proxy_url = c_proxy_url ).
+            cv_proxy_url = cv_proxy_url ).
+      CATCH cx_sy_ref_is_initial cx_sy_dyn_call_illegal_method.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~create_http_client.
+
+    TRY.
+        ri_client = gi_exit->create_http_client( iv_url ).
       CATCH cx_sy_ref_is_initial cx_sy_dyn_call_illegal_method.
     ENDTRY.
 
@@ -101,4 +111,19 @@ CLASS ZCL_ABAPGIT_EXIT IMPLEMENTATION.
     ENDTRY.
 
   ENDMETHOD.
+
+  METHOD zif_abapgit_exit~change_tadir.
+
+    TRY.
+        gi_exit->change_tadir(
+          EXPORTING
+            iv_package = iv_package
+            io_log     = io_log
+          CHANGING
+            ct_tadir   = ct_tadir ).
+      CATCH cx_sy_ref_is_initial cx_sy_dyn_call_illegal_method.
+    ENDTRY.
+
+  ENDMETHOD.
+
 ENDCLASS.

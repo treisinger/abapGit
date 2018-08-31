@@ -16,10 +16,28 @@ CLASS zcl_abapgit_object_xslt IMPLEMENTATION.
 
   METHOD zif_abapgit_object~has_changed_since.
     rv_changed = abap_true.
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~changed_by.
-    rv_user = c_user_unknown. " todo
+
+    DATA: lo_xslt       TYPE REF TO cl_o2_api_xsltdesc,
+          ls_attributes TYPE o2xsltattr.
+
+    lo_xslt = get( ).
+    lo_xslt->get_attributes(
+      RECEIVING
+        p_attributes     = ls_attributes
+      EXCEPTIONS
+        object_invalid   = 1
+        xsltdesc_deleted = 2
+        OTHERS           = 3 ).
+
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    rv_user = ls_attributes-changedby.
+
   ENDMETHOD.
 
   METHOD get.
@@ -70,7 +88,7 @@ CLASS zcl_abapgit_object_xslt IMPLEMENTATION.
                           iv_ext    = 'xml'
                           iv_string = lv_source ) ##NO_TEXT.
 
-  ENDMETHOD.                    "zif_abapgit_object~serialize
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~deserialize.
 
@@ -123,7 +141,7 @@ CLASS zcl_abapgit_object_xslt IMPLEMENTATION.
 
     zcl_abapgit_objects_activation=>add_item( ms_item ).
 
-  ENDMETHOD.                    "zif_abapgit_object~deserialize
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~delete.
 
@@ -152,7 +170,7 @@ CLASS zcl_abapgit_object_xslt IMPLEMENTATION.
     lo_xslt->delete( ).
     lo_xslt->save( ).
 
-  ENDMETHOD.                    "zif_abapgit_object~delete
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~exists.
 
@@ -168,7 +186,7 @@ CLASS zcl_abapgit_object_xslt IMPLEMENTATION.
       rv_bool = abap_false.
     ENDIF.
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~jump.
 
@@ -178,14 +196,20 @@ CLASS zcl_abapgit_object_xslt IMPLEMENTATION.
         object_name = ms_item-obj_name
         object_type = ms_item-obj_type.
 
-  ENDMETHOD.                    "zif_abapgit_object~jump
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~compare_to_remote_version.
     CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
-ENDCLASS.                    "zcl_abapgit_object_xslt IMPLEMENTATION
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = abap_false.
+
+  ENDMETHOD.
+
+ENDCLASS.

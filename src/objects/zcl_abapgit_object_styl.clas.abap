@@ -18,7 +18,7 @@ CLASS zcl_abapgit_object_styl IMPLEMENTATION.
 
   METHOD zif_abapgit_object~has_changed_since.
     rv_changed = abap_true.
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~changed_by.
 
@@ -45,7 +45,7 @@ CLASS zcl_abapgit_object_styl IMPLEMENTATION.
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
     rs_metadata-delete_tadir = abap_true.
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~exists.
 
@@ -68,7 +68,7 @@ CLASS zcl_abapgit_object_styl IMPLEMENTATION.
 
     rv_bool = boolc( lv_found = abap_true ).
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~jump.
 
@@ -114,7 +114,7 @@ CLASS zcl_abapgit_object_styl IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'error from ABAP4_CALL_TRANSACTION, STYL' ).
     ENDIF.
 
-  ENDMETHOD.                    "jump
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~delete.
 
@@ -128,7 +128,7 @@ CLASS zcl_abapgit_object_styl IMPLEMENTATION.
         style    = lv_style
         language = '*'.
 
-  ENDMETHOD.                    "delete
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~deserialize.
 
@@ -148,7 +148,7 @@ CLASS zcl_abapgit_object_styl IMPLEMENTATION.
 
     tadir_insert( iv_package ).
 
-  ENDMETHOD.                    "deserialize
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~serialize.
 
@@ -180,10 +180,16 @@ CLASS zcl_abapgit_object_styl IMPLEMENTATION.
     io_xml->add( iv_name = 'STYLE'
                  ig_data = ls_style ).
 
-  ENDMETHOD.                    "serialize
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~compare_to_remote_version.
     CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
-ENDCLASS.                    "zcl_abapgit_object_styl IMPLEMENTATION
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = abap_false.
+
+  ENDMETHOD.
+
+ENDCLASS.

@@ -4,6 +4,8 @@ CLASS zcl_abapgit_gui_page_boverview DEFINITION
   CREATE PUBLIC INHERITING FROM zcl_abapgit_gui_page.
 
   PUBLIC SECTION.
+    INTERFACES: zif_abapgit_gui_page_hotkey.
+
     METHODS:
       constructor
         IMPORTING io_repo TYPE REF TO zcl_abapgit_repo_online
@@ -14,9 +16,10 @@ CLASS zcl_abapgit_gui_page_boverview DEFINITION
     METHODS render_content REDEFINITION.
 
   PRIVATE SECTION.
-    DATA: mo_repo     TYPE REF TO zcl_abapgit_repo_online,
-          mv_compress TYPE abap_bool VALUE abap_false,
-          mt_commits  TYPE zif_abapgit_definitions=>ty_commit_tt.
+    DATA: mo_repo            TYPE REF TO zcl_abapgit_repo_online,
+          mv_compress        TYPE abap_bool VALUE abap_false,
+          mt_commits         TYPE zif_abapgit_definitions=>ty_commit_tt,
+          mi_branch_overview TYPE REF TO zif_abapgit_branch_overview.
 
     CONSTANTS: BEGIN OF c_actions,
                  uncompress TYPE string VALUE 'uncompress' ##NO_TEXT,
@@ -58,7 +61,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_GUI_PAGE_BOVERVIEW IMPLEMENTATION.
+CLASS zcl_abapgit_gui_page_boverview IMPLEMENTATION.
 
 
   METHOD body.
@@ -86,7 +89,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_BOVERVIEW IMPLEMENTATION.
     ro_html->add( '<canvas id="gitGraph"></canvas>' ).
 
     ro_html->add( '<script type="text/javascript" src="https://cdnjs.' &&
-      'cloudflare.com/ajax/libs/gitgraph.js/1.2.3/gitgraph.min.js">' &&
+      'cloudflare.com/ajax/libs/gitgraph.js/1.12.0/gitgraph.min.js">' &&
       '</script>' ) ##NO_TEXT.
 
     ro_html->add( '<script type="text/javascript">' ).
@@ -234,7 +237,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_BOVERVIEW IMPLEMENTATION.
 
     CREATE OBJECT ro_html.
 
-    lt_branches = zcl_abapgit_branch_overview=>get_branches( ).
+    lt_branches = mi_branch_overview->get_branches( ).
 
     ro_html->add( |<select name="{ iv_name }">| ).
     LOOP AT lt_branches ASSIGNING <ls_branch>.
@@ -248,9 +251,11 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_BOVERVIEW IMPLEMENTATION.
 
   METHOD refresh.
 
-    mt_commits = zcl_abapgit_branch_overview=>run( mo_repo ).
+    mi_branch_overview = zcl_abapgit_factory=>get_branch_overview( mo_repo ).
+
+    mt_commits = mi_branch_overview->get_commits( ).
     IF mv_compress = abap_true.
-      mt_commits = zcl_abapgit_branch_overview=>compress( mt_commits ).
+      mt_commits = mi_branch_overview->compress( mt_commits ).
     ENDIF.
 
   ENDMETHOD.
@@ -291,15 +296,15 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_BOVERVIEW IMPLEMENTATION.
     CASE iv_action.
       WHEN c_actions-refresh.
         refresh( ).
-        ev_state = zif_abapgit_definitions=>gc_event_state-re_render.
+        ev_state = zif_abapgit_definitions=>c_event_state-re_render.
       WHEN c_actions-uncompress.
         mv_compress = abap_false.
         refresh( ).
-        ev_state = zif_abapgit_definitions=>gc_event_state-re_render.
+        ev_state = zif_abapgit_definitions=>c_event_state-re_render.
       WHEN c_actions-compress.
         mv_compress = abap_true.
         refresh( ).
-        ev_state = zif_abapgit_definitions=>gc_event_state-re_render.
+        ev_state = zif_abapgit_definitions=>c_event_state-re_render.
       WHEN c_actions-merge.
         ls_merge = decode_merge( it_postdata ).
         CREATE OBJECT lo_merge
@@ -308,8 +313,13 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_BOVERVIEW IMPLEMENTATION.
             iv_source = ls_merge-source
             iv_target = ls_merge-target.
         ei_page = lo_merge.
-        ev_state = zif_abapgit_definitions=>gc_event_state-new_page.
+        ev_state = zif_abapgit_definitions=>c_event_state-new_page.
     ENDCASE.
 
   ENDMETHOD.
+
+  METHOD zif_abapgit_gui_page_hotkey~get_hotkey_actions.
+
+  ENDMETHOD.
+
 ENDCLASS.

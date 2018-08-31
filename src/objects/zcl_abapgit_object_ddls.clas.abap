@@ -70,7 +70,7 @@ CLASS ZCL_ABAPGIT_OBJECT_DDLS IMPLEMENTATION.
         zcx_abapgit_exception=>raise( 'DDLS Jump Error' ).
     ENDTRY.
 
-  ENDMETHOD.                    "open_adt_stob
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~changed_by.
@@ -109,12 +109,12 @@ CLASS ZCL_ABAPGIT_OBJECT_DDLS IMPLEMENTATION.
       rv_user = c_user_unknown.
     ENDIF.
 
-  ENDMETHOD.                    "zif_abapgit_object~changed_by
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~compare_to_remote_version.
     CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
-  ENDMETHOD.                    "zif_abapgit_object~compare_to_remote_version
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~delete.
@@ -134,7 +134,7 @@ CLASS ZCL_ABAPGIT_OBJECT_DDLS IMPLEMENTATION.
         zcx_abapgit_exception=>raise( 'DDLS error deleting' ).
     ENDTRY.
 
-  ENDMETHOD.                    "delete
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~deserialize.
@@ -178,7 +178,7 @@ CLASS ZCL_ABAPGIT_OBJECT_DDLS IMPLEMENTATION.
 
     zcl_abapgit_objects_activation=>add_item( ms_item ).
 
-  ENDMETHOD.                    "deserialize
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~exists.
@@ -207,7 +207,7 @@ CLASS ZCL_ABAPGIT_OBJECT_DDLS IMPLEMENTATION.
         rv_bool = abap_false.
     ENDTRY.
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~get_metadata.
@@ -215,12 +215,12 @@ CLASS ZCL_ABAPGIT_OBJECT_DDLS IMPLEMENTATION.
 
     rs_metadata-ddic         = abap_true.
     rs_metadata-delete_tadir = abap_true.
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~has_changed_since.
     rv_changed = abap_true.
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~jump.
@@ -238,19 +238,18 @@ CLASS ZCL_ABAPGIT_OBJECT_DDLS IMPLEMENTATION.
 
     CASE lv_ddtypekind.
       WHEN 'STOB'.
-
-        me->open_adt_stob( iv_ddls_name = ms_item-obj_name ).
+        me->open_adt_stob( ms_item-obj_name ).
       WHEN OTHERS.
         zcx_abapgit_exception=>raise( 'DDLS Jump Error' ).
     ENDCASE.
 
-  ENDMETHOD.                    "jump
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~serialize.
 
-    DATA: lo_ddl  TYPE REF TO object,
-          lr_data TYPE REF TO data,
+    DATA: lo_ddl       TYPE REF TO object,
+          lr_data      TYPE REF TO data,
           lt_clr_comps TYPE STANDARD TABLE OF fieldname WITH DEFAULT KEY.
 
     FIELD-SYMBOLS: <lg_data>  TYPE any,
@@ -284,8 +283,9 @@ CLASS ZCL_ABAPGIT_OBJECT_DDLS IMPLEMENTATION.
 
     LOOP AT lt_clr_comps ASSIGNING <lv_comp>.
       ASSIGN COMPONENT <lv_comp> OF STRUCTURE <lg_data> TO <lg_field>.
-      ASSERT sy-subrc = 0.
-      CLEAR <lg_field>.
+      IF sy-subrc = 0.
+        CLEAR <lg_field>.
+      ENDIF.
     ENDLOOP.
 
     ASSIGN COMPONENT 'SOURCE' OF STRUCTURE <lg_data> TO <lg_field>.
@@ -299,5 +299,13 @@ CLASS ZCL_ABAPGIT_OBJECT_DDLS IMPLEMENTATION.
     io_xml->add( iv_name = 'DDLS'
                  ig_data = <lg_data> ).
 
-  ENDMETHOD.                    "serialize
+  ENDMETHOD.
+
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = 'ESDICT'
+                                            iv_argument    = |{ ms_item-obj_type }{ ms_item-obj_name }| ).
+
+  ENDMETHOD.
+
 ENDCLASS.

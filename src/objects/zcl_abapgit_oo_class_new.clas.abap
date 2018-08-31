@@ -7,60 +7,63 @@ CLASS zcl_abapgit_oo_class_new DEFINITION PUBLIC INHERITING FROM zcl_abapgit_oo_
       zif_abapgit_oo_object_fnc~deserialize_source REDEFINITION.
 
   PRIVATE SECTION.
-    CLASS-METHODS:
-      update_report
-        IMPORTING
-          iv_program        TYPE programm
-          it_source         TYPE string_table
-        RETURNING
-          VALUE(rv_updated) TYPE abap_bool
-        RAISING
-          zcx_abapgit_exception,
-      generate_classpool
-        IMPORTING
-          iv_name TYPE seoclsname
-        RAISING
-          zcx_abapgit_exception,
-      update_meta
-        IMPORTING
-          iv_name     TYPE seoclsname
-          iv_exposure TYPE seoexpose
-          it_source   TYPE rswsourcet
-        RAISING
-          zcx_abapgit_exception,
-      determine_method_include
-        IMPORTING
-          iv_name           TYPE seoclsname
-          iv_method         TYPE seocpdname
-        RETURNING
-          VALUE(rv_program) TYPE programm
-        RAISING
-          zcx_abapgit_exception,
-      init_scanner
-        IMPORTING
-          it_source         TYPE zif_abapgit_definitions=>ty_string_tt
-          iv_name           TYPE seoclsname
-        RETURNING
-          VALUE(ro_scanner) TYPE REF TO cl_oo_source_scanner_class
-        RAISING
-          zcx_abapgit_exception,
-      update_full_class_include
-        IMPORTING
-          iv_classname TYPE seoclsname
-          it_source    TYPE string_table
-          it_methods   TYPE cl_oo_source_scanner_class=>type_method_implementations,
-      create_report
-        IMPORTING
-          iv_program      TYPE programm
-          it_source       TYPE string_table
-          iv_extension    TYPE sychar02
-          iv_program_type TYPE sychar01
-          iv_version      TYPE r3state,
-      update_cs_number_of_methods
-        IMPORTING
-          iv_classname              TYPE seoclsname
-          iv_number_of_impl_methods TYPE i.
 
+    CLASS-METHODS update_source_index
+      IMPORTING
+        !iv_clsname TYPE csequence
+        !io_scanner TYPE REF TO cl_oo_source_scanner_class .
+    CLASS-METHODS update_report
+      IMPORTING
+        !iv_program       TYPE programm
+        !it_source        TYPE string_table
+      RETURNING
+        VALUE(rv_updated) TYPE abap_bool
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS generate_classpool
+      IMPORTING
+        !iv_name TYPE seoclsname
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS update_meta
+      IMPORTING
+        !iv_name     TYPE seoclsname
+        !iv_exposure TYPE seoexpose
+        !it_source   TYPE rswsourcet
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS determine_method_include
+      IMPORTING
+        !iv_name          TYPE seoclsname
+        !iv_method        TYPE seocpdname
+      RETURNING
+        VALUE(rv_program) TYPE programm
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS init_scanner
+      IMPORTING
+        !it_source        TYPE zif_abapgit_definitions=>ty_string_tt
+        !iv_name          TYPE seoclsname
+      RETURNING
+        VALUE(ro_scanner) TYPE REF TO cl_oo_source_scanner_class
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS update_full_class_include
+      IMPORTING
+        !iv_classname TYPE seoclsname
+        !it_source    TYPE string_table
+        !it_methods   TYPE cl_oo_source_scanner_class=>type_method_implementations .
+    CLASS-METHODS create_report
+      IMPORTING
+        !iv_program      TYPE programm
+        !it_source       TYPE string_table
+        !iv_extension    TYPE sychar02
+        !iv_program_type TYPE sychar01
+        !iv_version      TYPE r3state .
+    CLASS-METHODS update_cs_number_of_methods
+      IMPORTING
+        !iv_classname              TYPE seoclsname
+        !iv_number_of_impl_methods TYPE i .
 ENDCLASS.
 
 
@@ -180,7 +183,13 @@ CLASS ZCL_ABAPGIT_OO_CLASS_NEW IMPLEMENTATION.
                    <lg_field>       TYPE any.
 
 
-    CREATE DATA lr_cache_entry TYPE ('SEO_CS_CACHE').
+    TRY.
+        CREATE DATA lr_cache_entry TYPE ('SEO_CS_CACHE').
+      CATCH cx_sy_create_data_error.
+* does not exist in some older systems
+        RETURN.
+    ENDTRY.
+
     ASSIGN lr_cache_entry->* TO <lg_cache_entry>.
     ASSERT sy-subrc = 0.
 
@@ -228,18 +237,31 @@ CLASS ZCL_ABAPGIT_OO_CLASS_NEW IMPLEMENTATION.
 
     ls_clskey-clsname = iv_name.
 
-* todo, downport to 702, see https://github.com/larshp/abapGit/issues/933
-    CREATE OBJECT lo_update TYPE ('CL_OO_CLASS_SECTION_SOURCE')
-      EXPORTING
-        clskey                        = ls_clskey
-        exposure                      = iv_exposure
-        state                         = 'A'
-        source                        = it_source
-        suppress_constrctr_generation = seox_true
-      EXCEPTIONS
-        class_not_existing            = 1
-        read_source_error             = 2
-        OTHERS                        = 3.
+    TRY.
+        CREATE OBJECT lo_update TYPE ('CL_OO_CLASS_SECTION_SOURCE')
+          EXPORTING
+            clskey                        = ls_clskey
+            exposure                      = iv_exposure
+            state                         = 'A'
+            source                        = it_source
+            suppress_constrctr_generation = seox_true
+          EXCEPTIONS
+            class_not_existing            = 1
+            read_source_error             = 2
+            OTHERS                        = 3.
+      CATCH cx_sy_dyn_call_param_not_found.
+* downport to 702, see https://github.com/larshp/abapGit/issues/933
+* this will READ REPORT instead of using it_source, which should be okay
+        CREATE OBJECT lo_update TYPE cl_oo_class_section_source
+          EXPORTING
+            clskey             = ls_clskey
+            exposure           = iv_exposure
+            state              = 'A'
+          EXCEPTIONS
+            class_not_existing = 1
+            read_source_error  = 2
+            OTHERS             = 3.
+    ENDTRY.
     IF sy-subrc <> 0.
       zcx_abapgit_exception=>raise( 'error instantiating CL_OO_CLASS_SECTION_SOURCE' ).
     ENDIF.
@@ -292,6 +314,37 @@ CLASS ZCL_ABAPGIT_OO_CLASS_NEW IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD update_source_index.
+
+    CONSTANTS:
+      lc_version_active   TYPE r3state VALUE 'A',           "#EC NOTEXT
+      lc_version_inactive TYPE r3state VALUE 'I'.           "#EC NOTEXT
+
+    "    dynamic invocation, IF_OO_SOURCE_POS_INDEX_HELPER doesn't exist in 702.
+    DATA lo_index_helper TYPE REF TO object.
+
+    TRY.
+        CREATE OBJECT lo_index_helper TYPE ('CL_OO_SOURCE_POS_INDEX_HELPER').
+
+        CALL METHOD lo_index_helper->('IF_OO_SOURCE_POS_INDEX_HELPER~CREATE_INDEX_WITH_SCANNER')
+          EXPORTING
+            class_name = iv_clsname
+            version    = lc_version_active
+            scanner    = io_scanner.
+
+        CALL METHOD lo_index_helper->('IF_OO_SOURCE_POS_INDEX_HELPER~DELETE_INDEX')
+          EXPORTING
+            class_name = iv_clsname
+            version    = lc_version_inactive.
+
+      CATCH cx_root.
+        " it's probably okay to no update the index
+        RETURN.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_oo_object_fnc~create.
 * same as in super class, but with "version = seoc_version_active"
 
@@ -301,7 +354,7 @@ CLASS ZCL_ABAPGIT_OO_CLASS_NEW IMPLEMENTATION.
         overwrite       = iv_overwrite
         version         = seoc_version_active
       CHANGING
-        class           = is_properties
+        class           = cg_properties
       EXCEPTIONS
         existing        = 1
         is_interface    = 2
@@ -394,6 +447,10 @@ CLASS ZCL_ABAPGIT_OO_CLASS_NEW IMPLEMENTATION.
     update_full_class_include( iv_classname = is_key-clsname
                                it_source    = it_source
                                it_methods   = lt_methods ).
+
+    update_source_index(
+      iv_clsname = is_key-clsname
+      io_scanner = lo_scanner ).
 
 * TODO, perhaps move this call to somewhere else, to be done while cleaning up the CLAS deserialization
     zcl_abapgit_objects_activation=>add(

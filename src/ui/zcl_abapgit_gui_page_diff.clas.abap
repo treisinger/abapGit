@@ -1,9 +1,10 @@
-class ZCL_ABAPGIT_GUI_PAGE_DIFF definition
-  public
-  final
-  create public INHERITING FROM zcl_abapgit_gui_page.
+CLASS zcl_abapgit_gui_page_diff DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC INHERITING FROM zcl_abapgit_gui_page.
 
   PUBLIC SECTION.
+    INTERFACES: zif_abapgit_gui_page_hotkey.
 
     CONSTANTS:
       BEGIN OF c_fstate,
@@ -26,10 +27,9 @@ class ZCL_ABAPGIT_GUI_PAGE_DIFF definition
 
     METHODS:
       constructor
-        IMPORTING iv_key           TYPE zif_abapgit_persistence=>ty_repo-key
-                  is_file          TYPE zif_abapgit_definitions=>ty_file OPTIONAL
-                  is_object        TYPE zif_abapgit_definitions=>ty_item OPTIONAL
-                  iv_supress_stage TYPE abap_bool DEFAULT abap_false
+        IMPORTING iv_key    TYPE zif_abapgit_persistence=>ty_repo-key
+                  is_file   TYPE zif_abapgit_definitions=>ty_file OPTIONAL
+                  is_object TYPE zif_abapgit_definitions=>ty_item OPTIONAL
         RAISING   zcx_abapgit_exception,
       zif_abapgit_gui_page~on_event REDEFINITION.
   PROTECTED SECTION.
@@ -76,8 +76,7 @@ class ZCL_ABAPGIT_GUI_PAGE_DIFF definition
                 is_status TYPE zif_abapgit_definitions=>ty_result
       RAISING   zcx_abapgit_exception.
     METHODS build_menu
-      IMPORTING iv_supress_stage TYPE abap_bool
-      RETURNING VALUE(ro_menu)   TYPE REF TO zcl_abapgit_html_toolbar.
+      RETURNING VALUE(ro_menu) TYPE REF TO zcl_abapgit_html_toolbar.
     METHODS is_binary
       IMPORTING iv_d1         TYPE xstring
                 iv_d2         TYPE xstring
@@ -86,7 +85,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
+CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
 
   METHOD append_diff.
@@ -96,10 +95,10 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
       ls_r_dummy LIKE LINE OF it_remote ##NEEDED,
       ls_l_dummy LIKE LINE OF it_local  ##NEEDED.
 
-
     FIELD-SYMBOLS: <ls_remote> LIKE LINE OF it_remote,
                    <ls_local>  LIKE LINE OF it_local,
                    <ls_diff>   LIKE LINE OF mt_diff_files.
+
 
     READ TABLE it_remote ASSIGNING <ls_remote>
       WITH KEY filename = is_status-filename
@@ -171,7 +170,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
       ENDIF.
     ENDIF.
 
-  ENDMETHOD.  "append_diff
+  ENDMETHOD.
 
 
   METHOD build_menu.
@@ -194,22 +193,15 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
 
     CREATE OBJECT ro_menu.
 
-    IF iv_supress_stage = abap_false.
-      ro_menu->add( iv_txt = 'Stage'
-                    iv_act = |{ zif_abapgit_definitions=>gc_action-go_stage }?{ mv_repo_key }|
-                    iv_id  = 'stage-button'
-                    iv_opt = zif_abapgit_definitions=>gc_html_opt-strong ).
-    ENDIF.
-
     IF lines( lt_types ) > 1 OR lines( lt_users ) > 1.
       CREATE OBJECT lo_sub EXPORTING iv_id = 'diff-filter'.
 
       " File types
       IF lines( lt_types ) > 1.
-        lo_sub->add( iv_txt = 'TYPE' iv_typ = zif_abapgit_definitions=>gc_action_type-separator ).
+        lo_sub->add( iv_txt = 'TYPE' iv_typ = zif_abapgit_definitions=>c_action_type-separator ).
         LOOP AT lt_types ASSIGNING <lv_i>.
           lo_sub->add( iv_txt = <lv_i>
-                       iv_typ = zif_abapgit_definitions=>gc_action_type-onclick
+                       iv_typ = zif_abapgit_definitions=>c_action_type-onclick
                        iv_aux = 'type'
                        iv_chk = abap_true ).
         ENDLOOP.
@@ -217,10 +209,10 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
 
       " Changed by
       IF lines( lt_users ) > 1.
-        lo_sub->add( iv_txt = 'CHANGED BY' iv_typ = zif_abapgit_definitions=>gc_action_type-separator ).
+        lo_sub->add( iv_txt = 'CHANGED BY' iv_typ = zif_abapgit_definitions=>c_action_type-separator ).
         LOOP AT lt_users ASSIGNING <lv_i>.
           lo_sub->add( iv_txt = <lv_i>
-                       iv_typ = zif_abapgit_definitions=>gc_action_type-onclick
+                       iv_typ = zif_abapgit_definitions=>c_action_type-onclick
                        iv_aux = 'changed-by'
                        iv_chk = abap_true ).
         ENDLOOP.
@@ -233,7 +225,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
     ro_menu->add( iv_txt = 'Split/Unified view'
                   iv_act = c_actions-toggle_unified ) ##NO_TEXT.
 
-  ENDMETHOD.  " build_menu.
+  ENDMETHOD.
 
 
   METHOD constructor.
@@ -295,7 +287,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'PAGE_DIFF ERROR: No diff files found' ).
     ENDIF.
 
-    ms_control-page_menu  = build_menu( iv_supress_stage ).
+    ms_control-page_menu  = build_menu( ).
 
   ENDMETHOD.
 
@@ -336,7 +328,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
       ENDIF.
     ENDDO.
 
-  ENDMETHOD.  " is_binary.
+  ENDMETHOD.
 
 
   METHOD render_beacon.
@@ -355,19 +347,18 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
     ro_html->add( '<thead class="nav_line">' ).
     ro_html->add( '<tr>' ).
 
+    ro_html->add( '<th class="num"></th>' ).
     IF mv_unified = abap_true.
-      ro_html->add( '<th class="num"></th>' ).
       ro_html->add( '<th class="num"></th>' ).
       ro_html->add( |<th>@@ { is_diff_line-new_num } @@ { lv_beacon }</th>| ).
     ELSE.
-      ro_html->add( '<th class="num"></th>' ).
       ro_html->add( |<th colspan="3">@@ { is_diff_line-new_num } @@ { lv_beacon }</th>| ).
     ENDIF.
 
     ro_html->add( '</tr>' ).
     ro_html->add( '</thead>' ).
 
-  ENDMETHOD.  " render_beacon.
+  ENDMETHOD.
 
 
   METHOD render_content.
@@ -393,7 +384,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
     ENDLOOP.
     ro_html->add( '</div>' ).
 
-  ENDMETHOD.  "render_content
+  ENDMETHOD.
 
 
   METHOD render_diff.
@@ -412,17 +403,16 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
       ro_html->add( render_table_head( ) ).
       ro_html->add( render_lines( is_diff ) ).
       ro_html->add( '</table>' ).                           "#EC NOTEXT
-      ro_html->add( '</div>' ).                             "#EC NOTEXT
     ELSE.
       ro_html->add( '<div class="diff_content paddings center grey">' ). "#EC NOTEXT
       ro_html->add( 'The content seems to be binary.' ).    "#EC NOTEXT
       ro_html->add( 'Cannot display as diff.' ).            "#EC NOTEXT
-      ro_html->add( '</div>' ).                             "#EC NOTEXT
     ENDIF.
+    ro_html->add( '</div>' ).                               "#EC NOTEXT
 
     ro_html->add( '</div>' ).                               "#EC NOTEXT
 
-  ENDMETHOD.  " render_diff
+  ENDMETHOD.
 
 
   METHOD render_diff_head.
@@ -445,10 +435,10 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
       ro_html->add( |<span class="diff_banner diff_upd">~ { ls_stats-update }</span>| ).
     ENDIF.
 
-    ro_html->add( |<span class="diff_name">{ is_diff-filename }</span>| ). "#EC NOTEXT
+    ro_html->add( |<span class="diff_name">{ is_diff-path }{ is_diff-filename }</span>| ). "#EC NOTEXT
     ro_html->add( zcl_abapgit_gui_chunk_lib=>render_item_state(
-      iv1 = is_diff-lstate
-      iv2 = is_diff-rstate ) ).
+      iv_lstate = is_diff-lstate
+      iv_rstate = is_diff-rstate ) ).
 
     IF is_diff-fstate = c_fstate-both AND mv_unified = abap_true.
       ro_html->add( '<span class="attention pad-sides">Attention: Unified mode'
@@ -511,7 +501,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
       ro_html->add( render_line_unified( ) ). " Release delayed lines
     ENDIF.
 
-  ENDMETHOD.  "render_lines
+  ENDMETHOD.
 
 
   METHOD render_line_split.
@@ -559,7 +549,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
     ENDIF.
     ro_html->add( '</tr>' ).                                "#EC NOTEXT
 
-  ENDMETHOD. "render_line_split
+  ENDMETHOD.
 
 
   METHOD render_line_unified.
@@ -606,50 +596,46 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
     ENDCASE.
     ro_html->add( '</tr>' ).                                "#EC NOTEXT
 
-  ENDMETHOD. "render_line_unified
+  ENDMETHOD.
 
 
   METHOD render_table_head.
 
     CREATE OBJECT ro_html.
 
+    ro_html->add( '<thead class="header">' ).               "#EC NOTEXT
+    ro_html->add( '<tr>' ).                                 "#EC NOTEXT
+
     IF mv_unified = abap_true.
-      ro_html->add( '<thead class="header">' ).             "#EC NOTEXT
-      ro_html->add( '<tr>' ).                               "#EC NOTEXT
       ro_html->add( '<th class="num">old</th>' ).           "#EC NOTEXT
       ro_html->add( '<th class="num">new</th>' ).           "#EC NOTEXT
       ro_html->add( '<th>code</th>' ).                      "#EC NOTEXT
-      ro_html->add( '</tr>' ).                              "#EC NOTEXT
-      ro_html->add( '</thead>' ).                           "#EC NOTEXT
     ELSE.
-      ro_html->add( '<thead class="header">' ).             "#EC NOTEXT
-      ro_html->add( '<tr>' ).                               "#EC NOTEXT
       ro_html->add( '<th class="num"></th>' ).              "#EC NOTEXT
       ro_html->add( '<th>LOCAL</th>' ).                     "#EC NOTEXT
       ro_html->add( '<th class="num"></th>' ).              "#EC NOTEXT
       ro_html->add( '<th>REMOTE</th>' ).                    "#EC NOTEXT
-      ro_html->add( '</tr>' ).                              "#EC NOTEXT
-      ro_html->add( '</thead>' ).                           "#EC NOTEXT
     ENDIF.
 
-  ENDMETHOD.  " render_table_head.
+    ro_html->add( '</tr>' ).                                "#EC NOTEXT
+    ro_html->add( '</thead>' ).                             "#EC NOTEXT
+
+  ENDMETHOD.
 
 
   METHOD scripts.
 
-    CREATE OBJECT ro_html.
+    ro_html = super->scripts( ).
 
     ro_html->add( 'var gHelper = new DiffHelper({' ).
     ro_html->add( |  seed:        "{ mv_seed }",| ).
-    ro_html->add( |  stageAction: "{ zif_abapgit_definitions=>gc_action-go_stage }",| ).
     ro_html->add( '  ids: {' ).
     ro_html->add( '    diffList:    "diff-list",' ).
     ro_html->add( '    filterMenu:  "diff-filter",' ).
-    ro_html->add( '    stageButton: "stage-button"' ).
     ro_html->add( '  }' ).
     ro_html->add( '});' ).
 
-  ENDMETHOD.  "scripts
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_gui_page~on_event.
@@ -657,8 +643,14 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_DIFF IMPLEMENTATION.
     CASE iv_action.
       WHEN c_actions-toggle_unified. " Toggle file diplay
         mv_unified = zcl_abapgit_persistence_user=>get_instance( )->toggle_diff_unified( ).
-        ev_state   = zif_abapgit_definitions=>gc_event_state-re_render.
+        ev_state   = zif_abapgit_definitions=>c_event_state-re_render.
     ENDCASE.
 
-  ENDMETHOD. "lif_gui_page~on_event
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_gui_page_hotkey~get_hotkey_actions.
+
+  ENDMETHOD.
+
 ENDCLASS.

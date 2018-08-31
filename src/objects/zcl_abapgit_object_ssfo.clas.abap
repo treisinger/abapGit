@@ -13,7 +13,7 @@ CLASS zcl_abapgit_object_ssfo IMPLEMENTATION.
 
   METHOD zif_abapgit_object~has_changed_since.
     rv_changed = abap_true.
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~changed_by.
 
@@ -28,7 +28,7 @@ CLASS zcl_abapgit_object_ssfo IMPLEMENTATION.
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
     rs_metadata-delete_tadir = abap_true.
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~exists.
 
@@ -39,31 +39,53 @@ CLASS zcl_abapgit_object_ssfo IMPLEMENTATION.
       WHERE formname = ms_item-obj_name.
     rv_bool = boolc( sy-subrc = 0 ).
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~jump.
 
-    DATA: lt_bdcdata TYPE TABLE OF bdcdata.
+    DATA: lt_bdcdata  TYPE TABLE OF bdcdata,
+          lv_formtype TYPE stxfadm-formtype.
 
     FIELD-SYMBOLS: <ls_bdcdata> LIKE LINE OF lt_bdcdata.
-
 
     APPEND INITIAL LINE TO lt_bdcdata ASSIGNING <ls_bdcdata>.
     <ls_bdcdata>-program  = 'SAPMSSFO'.
     <ls_bdcdata>-dynpro   = '0100'.
     <ls_bdcdata>-dynbegin = abap_true.
 
+    SELECT SINGLE formtype FROM stxfadm INTO lv_formtype
+           WHERE formname = ms_item-obj_name.
+
+    IF lv_formtype = cssf_formtype_text.
+
+      APPEND INITIAL LINE TO lt_bdcdata ASSIGNING <ls_bdcdata>.
+      <ls_bdcdata>-fnam = 'RB_TX'.
+      <ls_bdcdata>-fval = abap_true.
+
+      APPEND INITIAL LINE TO lt_bdcdata ASSIGNING <ls_bdcdata>.
+      <ls_bdcdata>-fnam = 'BDC_OKCODE'.
+      <ls_bdcdata>-fval = '=RB'.
+
+      APPEND INITIAL LINE TO lt_bdcdata ASSIGNING <ls_bdcdata>.
+      <ls_bdcdata>-program  = 'SAPMSSFO'.
+      <ls_bdcdata>-dynpro   = '0100'.
+      <ls_bdcdata>-dynbegin = abap_true.
+
+      APPEND INITIAL LINE TO lt_bdcdata ASSIGNING <ls_bdcdata>.
+      <ls_bdcdata>-fnam = 'SSFSCREEN-TNAME'.
+      <ls_bdcdata>-fval = ms_item-obj_name.
+
+    ELSE.
+
+      APPEND INITIAL LINE TO lt_bdcdata ASSIGNING <ls_bdcdata>.
+      <ls_bdcdata>-fnam = 'SSFSCREEN-FNAME'.
+      <ls_bdcdata>-fval = ms_item-obj_name.
+
+    ENDIF.
+
     APPEND INITIAL LINE TO lt_bdcdata ASSIGNING <ls_bdcdata>.
     <ls_bdcdata>-fnam = 'BDC_OKCODE'.
     <ls_bdcdata>-fval = '=DISPLAY'.
-
-    APPEND INITIAL LINE TO lt_bdcdata ASSIGNING <ls_bdcdata>.
-    <ls_bdcdata>-fnam = 'RB_SF'.
-    <ls_bdcdata>-fval = abap_true.
-
-    APPEND INITIAL LINE TO lt_bdcdata ASSIGNING <ls_bdcdata>.
-    <ls_bdcdata>-fnam = 'SSFSCREEN-FNAME'.
-    <ls_bdcdata>-fval = ms_item-obj_name.
 
     CALL FUNCTION 'ABAP4_CALL_TRANSACTION'
       STARTING NEW TASK 'GIT'
@@ -79,7 +101,7 @@ CLASS zcl_abapgit_object_ssfo IMPLEMENTATION.
         OTHERS                = 4
         ##fm_subrc_ok.                                                   "#EC CI_SUBRC
 
-  ENDMETHOD.                    "jump
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~delete.
 
@@ -105,7 +127,7 @@ CLASS zcl_abapgit_object_ssfo IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'Error from FB_DELETE_FORM' ).
     ENDIF.
 
-  ENDMETHOD.                    "delete
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~serialize.
 * see function module FB_DOWNLOAD_FORM
@@ -167,7 +189,7 @@ CLASS zcl_abapgit_object_ssfo IMPLEMENTATION.
 
     io_xml->set_raw( li_xml_doc->get_root_element( ) ).
 
-  ENDMETHOD.                    "serialize
+  ENDMETHOD.
 
   METHOD fix_ids.
 * makes sure ID and IDREF values are the same values for each serialization run
@@ -225,7 +247,9 @@ CLASS zcl_abapgit_object_ssfo IMPLEMENTATION.
           lv_name     TYPE string,
           li_iterator TYPE REF TO if_ixml_node_iterator,
           lo_sf       TYPE REF TO cl_ssf_fb_smart_form,
-          lo_res      TYPE REF TO cl_ssf_fb_smart_form.
+          lo_res      TYPE REF TO cl_ssf_fb_smart_form,
+          lx_error    TYPE REF TO cx_ssf_fb,
+          lv_text     TYPE string.
 
 
     CREATE OBJECT lo_sf.
@@ -252,26 +276,40 @@ CLASS zcl_abapgit_object_ssfo IMPLEMENTATION.
     tadir_insert( iv_package ).
 
     lv_formname = ms_item-obj_name.
-    lo_sf->enqueue( suppress_corr_check = space
-                    master_language     = mv_language
-                    mode                = 'INSERT'
-                    formname            = lv_formname ).
 
-    lo_sf->xml_upload( EXPORTING dom      = io_xml->get_raw( )->get_root_element( )
-                                 formname = lv_formname
-                                 language = mv_language
-                       CHANGING  sform    = lo_res ).
+    TRY.
+        lo_sf->enqueue( suppress_corr_check = space
+                        master_language     = mv_language
+                        mode                = 'INSERT'
+                        formname            = lv_formname ).
 
-    lo_res->store( im_formname = lo_res->header-formname
-                   im_language = mv_language
-                   im_active   = abap_true ).
+        lo_sf->xml_upload( EXPORTING dom      = io_xml->get_raw( )->get_root_element( )
+                                     formname = lv_formname
+                                     language = mv_language
+                           CHANGING  sform    = lo_res ).
 
-    lo_sf->dequeue( lv_formname ).
+        lo_res->store( im_formname = lo_res->header-formname
+                       im_language = mv_language
+                       im_active   = abap_true ).
 
-  ENDMETHOD.                    "deserialize
+        lo_sf->dequeue( lv_formname ).
+
+      CATCH cx_ssf_fb INTO lx_error.
+        lv_text = lx_error->get_text( ).
+        zcx_abapgit_exception=>raise( |{ ms_item-obj_type } { ms_item-obj_name }: { lv_text } | ).
+    ENDTRY.
+
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~compare_to_remote_version.
     CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
-ENDCLASS.                    "zcl_abapgit_object_ssfo IMPLEMENTATION
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = 'E_SMFORM'
+                                            iv_argument    = |{ ms_item-obj_name }| ).
+
+  ENDMETHOD.
+
+ENDCLASS.

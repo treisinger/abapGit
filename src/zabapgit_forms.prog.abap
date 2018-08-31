@@ -34,6 +34,12 @@ FORM open_gui RAISING zcx_abapgit_exception.
   IF sy-batch = abap_true.
     zcl_abapgit_background=>run( ).
   ELSE.
+
+    IF zcl_abapgit_persist_settings=>get_instance( )->read( )->get_show_default_repo( ) = abap_false.
+      " Don't show the last seen repo at startup
+      zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( || ).
+    ENDIF.
+
     zcl_abapgit_gui=>get_instance( )->go_home( ).
     CALL SELECTION-SCREEN 1001. " trigger screen
   ENDIF.
@@ -61,10 +67,12 @@ FORM branch_popup TABLES   tt_fields TYPE zif_abapgit_definitions=>ty_sval_tt
                   RAISING zcx_abapgit_exception ##called ##needed.
 * called dynamically from function module POPUP_GET_VALUES_USER_BUTTONS
 
-  DATA: lx_error TYPE REF TO zcx_abapgit_exception.
+  DATA: lx_error  TYPE REF TO zcx_abapgit_exception,
+        li_popups TYPE REF TO zif_abapgit_popups.
 
   TRY.
-      zcl_abapgit_popups=>branch_popup_callback(
+      li_popups = zcl_abapgit_ui_factory=>get_popups( ).
+      li_popups->branch_popup_callback(
         EXPORTING
           iv_code       = pv_code
         CHANGING
@@ -85,10 +93,12 @@ FORM package_popup TABLES   tt_fields TYPE zif_abapgit_definitions=>ty_sval_tt
                    RAISING  zcx_abapgit_exception ##called ##needed.
 * called dynamically from function module POPUP_GET_VALUES_USER_BUTTONS
 
-  DATA: lx_error TYPE REF TO zcx_abapgit_exception.
+  DATA: lx_error  TYPE REF TO zcx_abapgit_exception,
+        li_popups TYPE REF TO zif_abapgit_popups.
 
   TRY.
-      zcl_abapgit_popups=>package_popup_callback(
+      li_popups = zcl_abapgit_ui_factory=>get_popups( ).
+      li_popups->package_popup_callback(
         EXPORTING
           iv_code       = pv_code
         CHANGING
@@ -103,7 +113,9 @@ FORM package_popup TABLES   tt_fields TYPE zif_abapgit_definitions=>ty_sval_tt
 ENDFORM.                    "package_popup
 
 FORM output.
-  DATA: lt_ucomm TYPE TABLE OF sy-ucomm.
+  DATA: lt_ucomm TYPE TABLE OF sy-ucomm,
+        lx_error TYPE REF TO zcx_abapgit_exception.
+
   PERFORM set_pf_status IN PROGRAM rsdbrunt IF FOUND.
 
   APPEND 'CRET' TO lt_ucomm.  "Button Execute
@@ -113,6 +125,7 @@ FORM output.
       p_status  = sy-pfkey
     TABLES
       p_exclude = lt_ucomm.
+
 ENDFORM.
 
 FORM exit RAISING zcx_abapgit_exception.

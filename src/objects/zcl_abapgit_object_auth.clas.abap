@@ -8,7 +8,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_AUTH IMPLEMENTATION.
+CLASS zcl_abapgit_object_auth IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~changed_by.
@@ -44,7 +44,7 @@ CLASS ZCL_ABAPGIT_OBJECT_AUTH IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'error from SUSR_AUTF_DELETE_FIELD' ).
     ENDIF.
 
-  ENDMETHOD.                    "zif_abapgit_object~delete
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~deserialize.
@@ -71,7 +71,7 @@ CLASS ZCL_ABAPGIT_OBJECT_AUTH IMPLEMENTATION.
     CALL FUNCTION 'DB_COMMIT'.
     lo_auth->set_authfld_info_from_db( ls_authx-fieldname ).
 
-  ENDMETHOD.                    "zif_abapgit_object~deserialize
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~exists.
@@ -84,17 +84,17 @@ CLASS ZCL_ABAPGIT_OBJECT_AUTH IMPLEMENTATION.
       WHERE fieldname = ms_item-obj_name.               "#EC CI_GENBUFF
     rv_bool = boolc( sy-subrc = 0 ).
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~has_changed_since.
     rv_changed = abap_true.
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~jump.
@@ -109,7 +109,7 @@ CLASS ZCL_ABAPGIT_OBJECT_AUTH IMPLEMENTATION.
         id_field    = lv_field
         id_wbo_mode = abap_false.
 
-  ENDMETHOD.                    "zif_abapgit_object~jump
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~serialize.
@@ -126,5 +126,12 @@ CLASS ZCL_ABAPGIT_OBJECT_AUTH IMPLEMENTATION.
     io_xml->add( iv_name = 'AUTHX'
                  ig_data = ls_authx ).
 
-  ENDMETHOD.                    "zif_abapgit_object~serialize
+  ENDMETHOD.
+
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = abap_false.
+
+  ENDMETHOD.
+
 ENDCLASS.

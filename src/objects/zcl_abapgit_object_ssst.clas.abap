@@ -14,7 +14,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_SSST IMPLEMENTATION.
+CLASS zcl_abapgit_object_ssst IMPLEMENTATION.
 
 
   METHOD validate_font.
@@ -28,7 +28,7 @@ CLASS ZCL_ABAPGIT_OBJECT_SSST IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'Font family not found' ).
     ENDIF.
 
-  ENDMETHOD.                    "validate_font
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~changed_by.
@@ -71,7 +71,7 @@ CLASS ZCL_ABAPGIT_OBJECT_SSST IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'error from SSF_DELETE_STYLE' ).
     ENDIF.
 
-  ENDMETHOD.                    "delete
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~deserialize.
@@ -104,11 +104,13 @@ CLASS ZCL_ABAPGIT_OBJECT_SSST IMPLEMENTATION.
       EXCEPTIONS
         OTHERS              = 0.
 
-    SET PARAMETER ID 'EUK' FIELD iv_package.
+    set_default_package( iv_package ).
     ASSIGN ('(SAPLSTXBS)MASTER_LANGUAGE') TO <lv_spras>.
     IF sy-subrc = 0.
       <lv_spras> = ls_header-masterlang.
     ENDIF.
+
+    tadir_insert( iv_package ).
 
     CALL FUNCTION 'SSF_SAVE_STYLE'
       EXPORTING
@@ -138,7 +140,7 @@ CLASS ZCL_ABAPGIT_OBJECT_SSST IMPLEMENTATION.
 
     ENDIF.
 
-  ENDMETHOD.                    "deserialize
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~exists.
@@ -152,18 +154,18 @@ CLASS ZCL_ABAPGIT_OBJECT_SSST IMPLEMENTATION.
         AND vari      = ''.
     rv_bool = boolc( sy-subrc = 0 ).
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
     rs_metadata-delete_tadir = abap_true.
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~has_changed_since.
     rv_changed = abap_true.
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~jump.
@@ -200,7 +202,7 @@ CLASS ZCL_ABAPGIT_OBJECT_SSST IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'error from ABAP4_CALL_TRANSACTION, SSST' ).
     ENDIF.
 
-  ENDMETHOD.                    "jump
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~serialize.
@@ -260,5 +262,13 @@ CLASS ZCL_ABAPGIT_OBJECT_SSST IMPLEMENTATION.
     io_xml->add( ig_data = lt_tabstops
                  iv_name = 'STXSTAB' ).
 
-  ENDMETHOD.                    "serialize
+  ENDMETHOD.
+
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = 'E_SMSTYLE'
+                                            iv_argument    = |{ ms_item-obj_name }| ).
+
+  ENDMETHOD.
+
 ENDCLASS.

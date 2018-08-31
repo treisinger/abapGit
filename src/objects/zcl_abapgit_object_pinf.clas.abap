@@ -35,7 +35,7 @@ CLASS zcl_abapgit_object_pinf IMPLEMENTATION.
 
   METHOD zif_abapgit_object~has_changed_since.
     rv_changed = abap_true.
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~changed_by.
 
@@ -49,7 +49,7 @@ CLASS zcl_abapgit_object_pinf IMPLEMENTATION.
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~exists.
 
@@ -67,7 +67,7 @@ CLASS zcl_abapgit_object_pinf IMPLEMENTATION.
       rv_bool = boolc( sy-subrc = 0 ).
     ENDIF.
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~serialize.
 
@@ -122,7 +122,7 @@ CLASS zcl_abapgit_object_pinf IMPLEMENTATION.
     io_xml->add( ig_data = ls_pinf
                  iv_name = 'PINF' ).
 
-  ENDMETHOD.                    "serialize
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~deserialize.
 
@@ -145,7 +145,7 @@ CLASS zcl_abapgit_object_pinf IMPLEMENTATION.
       is_pinf      = ls_pinf
       ii_interface = li_interface ).
 
-  ENDMETHOD.                    "deserialize
+  ENDMETHOD.
 
   METHOD update_attributes.
 
@@ -328,7 +328,7 @@ CLASS zcl_abapgit_object_pinf IMPLEMENTATION.
 
     li_interface->save( ).
 
-  ENDMETHOD.                    "delete
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~jump.
 
@@ -339,10 +339,16 @@ CLASS zcl_abapgit_object_pinf IMPLEMENTATION.
         object_type   = 'PINF'
         in_new_window = abap_true.
 
-  ENDMETHOD.                    "jump
+  ENDMETHOD.
 
   METHOD zif_abapgit_object~compare_to_remote_version.
     CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
-ENDCLASS.                    "zcl_abapgit_object_PINF IMPLEMENTATION
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = abap_false.
+
+  ENDMETHOD.
+
+ENDCLASS.

@@ -3,36 +3,56 @@ CLASS zcl_abapgit_object_tabl DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
     ALIASES mo_files FOR zif_abapgit_object~mo_files.
+  PRIVATE SECTION.
+    CONSTANTS: c_longtext_id_tabl TYPE dokil-id VALUE 'TB'.
 
 ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
+CLASS zcl_abapgit_object_tabl IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~changed_by.
 
-    DATA: lv_as4date TYPE dd02l-as4date,
-          lv_as4time TYPE dd02l-as4time.
+    TYPES: BEGIN OF ty_data,
+             as4user TYPE as4user,
+             as4date TYPE as4date,
+             as4time TYPE as4time,
+           END OF ty_data.
+
+    DATA: lt_data TYPE STANDARD TABLE OF ty_data WITH DEFAULT KEY,
+          ls_data LIKE LINE OF lt_data.
 
 
-    SELECT SINGLE as4user as4date as4time
-      FROM dd02l INTO (rv_user, lv_as4date, lv_as4time)
+    SELECT as4user as4date as4time
+      FROM dd02l INTO TABLE lt_data
       WHERE tabname = ms_item-obj_name
       AND as4local = 'A'
       AND as4vers = '0000'.
-    IF sy-subrc <> 0.
-      rv_user = c_user_unknown.
-      RETURN.
-    ENDIF.
 
-    SELECT SINGLE as4user INTO rv_user
+    SELECT as4user as4date as4time
+      APPENDING TABLE lt_data
       FROM dd09l
       WHERE tabname = ms_item-obj_name
       AND as4local = 'A'
-      AND as4vers = '0000'
-      AND ( as4date > lv_as4date OR ( as4date = lv_as4date AND as4time > lv_as4time ) ).
+      AND as4vers = '0000'.
+
+    SELECT as4user as4date as4time
+      APPENDING TABLE lt_data
+      FROM dd12l
+      WHERE sqltab = ms_item-obj_name
+      AND as4local = 'A'
+      AND as4vers = '0000'.
+
+    SORT lt_data BY as4date DESCENDING as4time DESCENDING.
+
+    READ TABLE lt_data INDEX 1 INTO ls_data.
+    IF sy-subrc = 0.
+      rv_user = ls_data-as4user.
+    ELSE.
+      rv_user = c_user_unknown.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -71,6 +91,7 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
     DATA: lv_objname  TYPE rsedd0-ddobjname,
           lv_tabclass TYPE dd02l-tabclass,
           lv_no_ask   TYPE abap_bool,
+          lv_subrc    TYPE sy-subrc,
           lr_data     TYPE REF TO data.
 
     FIELD-SYMBOLS: <lg_data>  TYPE any.
@@ -84,12 +105,21 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
       AND as4local = 'A'
       AND as4vers = '0000'.
     IF sy-subrc = 0 AND lv_tabclass = 'TRANSP'.
+
+* Avoid dump in dynamic SELECT in case the table does not exist on database
+      CALL FUNCTION 'DB_EXISTS_TABLE'
+        EXPORTING
+          tabname = lv_objname
+        IMPORTING
+          subrc   = lv_subrc.
+      IF lv_subrc = 0.
 * it cannot delete table with table wihtout asking
-      CREATE DATA lr_data TYPE (lv_objname).
-      ASSIGN lr_data->* TO <lg_data>.
-      SELECT SINGLE * FROM (lv_objname) INTO <lg_data>.
-      IF sy-subrc = 0.
-        lv_no_ask = abap_false.
+        CREATE DATA lr_data TYPE (lv_objname).
+        ASSIGN lr_data->* TO <lg_data>.
+        SELECT SINGLE * FROM (lv_objname) INTO <lg_data>.
+        IF sy-subrc = 0.
+          lv_no_ask = abap_false.
+        ENDIF.
       ENDIF.
     ENDIF.
 
@@ -107,7 +137,9 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'error from RS_DD_DELETE_OBJ, TABL' ).
     ENDIF.
 
-  ENDMETHOD.                    "delete
+    delete_longtexts( c_longtext_id_tabl ).
+
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~deserialize.
@@ -217,7 +249,9 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
 
     ENDLOOP.
 
-  ENDMETHOD.                    "deserialize
+    deserialize_longtexts( io_xml ).
+
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~exists.
@@ -231,13 +265,13 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
       AND as4vers = '0000'.
     rv_bool = boolc( sy-subrc = 0 ).
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
     rs_metadata-ddic = abap_true.
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~has_changed_since.
@@ -293,7 +327,15 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = 'ESDICT'
+                                            iv_argument    = |{ ms_item-obj_type }{ ms_item-obj_name }| ).
+
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~jump.
@@ -301,7 +343,7 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
     jump_se11( iv_radio = 'RSRD1-DDTYPE'
                iv_field = 'RSRD1-DDTYPE_VAL' ).
 
-  ENDMETHOD.                    "jump
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~serialize.
@@ -319,10 +361,11 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
           lv_masklen TYPE c LENGTH 4,
           lt_dd36m   TYPE dd36mttyp.
 
-    FIELD-SYMBOLS: <ls_dd12v> LIKE LINE OF lt_dd12v,
-                   <ls_dd05m> LIKE LINE OF lt_dd05m,
-                   <ls_dd36m> LIKE LINE OF lt_dd36m,
-                   <ls_dd03p> LIKE LINE OF lt_dd03p.
+    FIELD-SYMBOLS: <ls_dd12v>      LIKE LINE OF lt_dd12v,
+                   <ls_dd05m>      LIKE LINE OF lt_dd05m,
+                   <ls_dd36m>      LIKE LINE OF lt_dd36m,
+                   <ls_dd03p>      LIKE LINE OF lt_dd03p,
+                   <lg_roworcolst> TYPE any.
 
 
     lv_name = ms_item-obj_name.
@@ -374,6 +417,12 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
            ls_dd09l-as4date,
            ls_dd09l-as4time.
 
+    ASSIGN COMPONENT 'ROWORCOLST' OF STRUCTURE ls_dd09l TO <lg_roworcolst>.
+    IF sy-subrc = 0 AND <lg_roworcolst> = 'C'.
+      CLEAR <lg_roworcolst>. "To avoid diff errors. This field doesn't exists in all releases
+    ENDIF.
+
+
     LOOP AT lt_dd12v ASSIGNING <ls_dd12v>.
       CLEAR: <ls_dd12v>-as4user,
              <ls_dd12v>-as4date,
@@ -390,6 +439,7 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
         <ls_dd03p>-dtelmaster,
         <ls_dd03p>-logflag,
         <ls_dd03p>-ddtext,
+        <ls_dd03p>-reservedte,
         <ls_dd03p>-reptext,
         <ls_dd03p>-scrtext_s,
         <ls_dd03p>-scrtext_m,
@@ -478,5 +528,8 @@ CLASS ZCL_ABAPGIT_OBJECT_TABL IMPLEMENTATION.
     io_xml->add( iv_name = 'DD36M'
                  ig_data = lt_dd36m ).
 
-  ENDMETHOD.                    "serialize
+    serialize_longtexts( io_xml         = io_xml
+                         iv_longtext_id = c_longtext_id_tabl ).
+
+  ENDMETHOD.
 ENDCLASS.

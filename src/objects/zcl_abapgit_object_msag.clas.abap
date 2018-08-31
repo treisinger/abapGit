@@ -10,7 +10,16 @@ CLASS zcl_abapgit_object_msag DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
              msgnr TYPE t100-msgnr,
              text  TYPE t100-text,
            END OF ty_t100_texts,
-           tt_t100_texts TYPE STANDARD TABLE OF ty_t100_texts.
+           tt_t100_texts TYPE STANDARD TABLE OF ty_t100_texts,
+           tty_t100      TYPE STANDARD TABLE OF t100
+                         WITH NON-UNIQUE DEFAULT KEY,
+           BEGIN OF ty_longtext,
+             dokil TYPE dokil,
+             head  TYPE thead,
+             lines TYPE tline_tab,
+           END OF ty_longtext,
+           tty_longtexts TYPE STANDARD TABLE OF ty_longtext
+                              WITH NON-UNIQUE DEFAULT KEY.
 
     METHODS:
       serialize_texts
@@ -18,16 +27,140 @@ CLASS zcl_abapgit_object_msag DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
         RAISING   zcx_abapgit_exception,
       deserialize_texts
         IMPORTING io_xml TYPE REF TO zcl_abapgit_xml_input
+        RAISING   zcx_abapgit_exception,
+      serialize_longtexts_msag
+        IMPORTING it_t100 TYPE zcl_abapgit_object_msag=>tty_t100
+                  io_xml  TYPE REF TO zcl_abapgit_xml_output
         RAISING   zcx_abapgit_exception.
-
 
 ENDCLASS.
 
-CLASS zcl_abapgit_object_msag IMPLEMENTATION.
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+
+CLASS ZCL_ABAPGIT_OBJECT_MSAG IMPLEMENTATION.
+
+
+  METHOD deserialize_texts.
+
+    DATA: lv_msg_id     TYPE rglif-message_id,
+          ls_t100       TYPE t100,
+          lt_t100t      TYPE TABLE OF t100t,
+          lt_t100_texts TYPE tt_t100_texts,
+          lt_t100u      TYPE TABLE OF t100u.
+
+    FIELD-SYMBOLS: <ls_t100_text> TYPE ty_t100_texts.
+
+
+    lv_msg_id = ms_item-obj_name.
+
+    SELECT * FROM t100u INTO TABLE lt_t100u
+      WHERE arbgb = lv_msg_id ORDER BY PRIMARY KEY.     "#EC CI_GENBUFF
+
+    io_xml->read( EXPORTING iv_name = 'T100_TEXTS'
+                  CHANGING  cg_data = lt_t100_texts ).
+
+    io_xml->read( EXPORTING iv_name = 'T100T'
+                  CHANGING  cg_data = lt_t100t ).
+
+    MODIFY t100t FROM TABLE lt_t100t.                     "#EC CI_SUBRC
+
+    LOOP AT lt_t100_texts ASSIGNING <ls_t100_text>.
+      "check if message exists
+      READ TABLE lt_t100u TRANSPORTING NO FIELDS
+        WITH KEY arbgb = lv_msg_id msgnr = <ls_t100_text>-msgnr BINARY SEARCH.
+      CHECK sy-subrc = 0. "if original message doesn't exist no translations added
+
+      MOVE-CORRESPONDING <ls_t100_text> TO ls_t100.
+      ls_t100-arbgb = lv_msg_id.
+      MODIFY t100 FROM ls_t100.                           "#EC CI_SUBRC
+      IF sy-subrc <> 0.
+        zcx_abapgit_exception=>raise( 'MSAG: Table T100 modify failed' ).
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD serialize_longtexts_msag.
+
+    DATA: lv_object  TYPE dokhl-object,
+          lt_objects TYPE STANDARD TABLE OF dokhl-object
+                          WITH NON-UNIQUE DEFAULT KEY,
+          lt_dokil   TYPE zif_abapgit_definitions=>tty_dokil.
+
+    FIELD-SYMBOLS: <ls_t100>  TYPE t100.
+
+    IF lines( it_t100 ) = 0.
+      RETURN.
+    ENDIF.
+
+    LOOP AT it_t100 ASSIGNING <ls_t100>.
+
+      lv_object = <ls_t100>-arbgb && <ls_t100>-msgnr.
+      INSERT lv_object INTO TABLE lt_objects.
+
+    ENDLOOP.
+
+    SELECT * FROM dokil
+             INTO TABLE lt_dokil
+             FOR ALL ENTRIES IN lt_objects
+             WHERE id     = 'NA'
+             AND   object = lt_objects-table_line.
+
+    IF lines( lt_dokil ) > 0.
+      serialize_longtexts( io_xml   = io_xml
+                           it_dokil = lt_dokil ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD serialize_texts.
+
+    DATA: lv_msg_id     TYPE rglif-message_id,
+          lt_t100_texts TYPE tt_t100_texts,
+          lt_t100t      TYPE TABLE OF t100t,
+          lt_i18n_langs TYPE TABLE OF langu.
+
+    lv_msg_id = ms_item-obj_name.
+
+    " Collect additional languages
+    " Skip master lang - it has been already serialized
+    SELECT DISTINCT sprsl AS langu INTO TABLE lt_i18n_langs
+      FROM t100t
+      WHERE arbgb = lv_msg_id
+      AND   sprsl <> mv_language.       "#EC CI_BYPASS "#EC CI_GENBUFF.
+
+    SORT lt_i18n_langs ASCENDING.
+
+    IF lines( lt_i18n_langs ) > 0.
+
+      SELECT * FROM t100t INTO CORRESPONDING FIELDS OF TABLE lt_t100t
+        WHERE sprsl <> mv_language
+        AND arbgb = lv_msg_id.                          "#EC CI_GENBUFF
+
+      SELECT * FROM t100 INTO CORRESPONDING FIELDS OF TABLE lt_t100_texts
+        FOR ALL ENTRIES IN lt_i18n_langs
+        WHERE sprsl = lt_i18n_langs-table_line
+        AND arbgb = lv_msg_id
+        ORDER BY PRIMARY KEY.             "#EC CI_SUBRC "#EC CI_GENBUFF
+
+      SORT lt_t100t BY sprsl ASCENDING.
+      SORT lt_t100_texts BY sprsl msgnr ASCENDING.
+
+      io_xml->add( iv_name = 'I18N_LANGS'
+                   ig_data = lt_i18n_langs ).
+
+      io_xml->add( iv_name = 'T100T'
+                   ig_data = lt_t100t ).
+
+      io_xml->add( iv_name = 'T100_TEXTS'
+                   ig_data = lt_t100_texts ).
+
+    ENDIF.
+
+  ENDMETHOD.
+
 
   METHOD zif_abapgit_object~changed_by.
 
@@ -39,31 +172,11 @@ CLASS zcl_abapgit_object_msag IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD zif_abapgit_object~get_metadata.
-    rs_metadata = get_metadata( ).
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
 
-  METHOD zif_abapgit_object~exists.
+  METHOD zif_abapgit_object~compare_to_remote_version.
+    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
+  ENDMETHOD.
 
-    DATA: lv_arbgb TYPE t100a-arbgb.
-
-
-    SELECT SINGLE arbgb FROM t100a INTO lv_arbgb
-      WHERE arbgb = ms_item-obj_name.                   "#EC CI_GENBUFF
-    rv_bool = boolc( sy-subrc = 0 ).
-
-  ENDMETHOD.                    "zif_abapgit_object~exists
-
-  METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation     = 'SHOW'
-        object_name   = ms_item-obj_name
-        object_type   = 'MSAG'
-        in_new_window = abap_true.
-
-  ENDMETHOD.                    "jump
 
   METHOD zif_abapgit_object~delete.
 
@@ -80,7 +193,8 @@ CLASS zcl_abapgit_object_msag IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'Error from RS_DELETE_MESSAGE_ID' ).
     ENDIF.
 
-  ENDMETHOD.                    "delete
+  ENDMETHOD.
+
 
   METHOD zif_abapgit_object~deserialize.
 * fm RPY_MESSAGE_ID_INSERT almost works, but not in older versions
@@ -160,15 +274,66 @@ CLASS zcl_abapgit_object_msag IMPLEMENTATION.
         AND msgnr = ls_t100u-msgnr.                       "#EC CI_SUBRC
     ENDLOOP.
 
+    deserialize_longtexts( io_xml ).
+
     deserialize_texts( io_xml = io_xml ).
 
-  ENDMETHOD.                    "deserialize
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~exists.
+
+    DATA: lv_arbgb TYPE t100a-arbgb.
+
+
+    SELECT SINGLE arbgb FROM t100a INTO lv_arbgb
+      WHERE arbgb = ms_item-obj_name.                   "#EC CI_GENBUFF
+    rv_bool = boolc( sy-subrc = 0 ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_metadata.
+    rs_metadata = get_metadata( ).
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~has_changed_since.
+    rv_changed = abap_true.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~is_locked.
+
+    DATA: lv_argument TYPE seqg3-garg.
+
+    lv_argument   = |{ ms_item-obj_name }|.
+    OVERLAY lv_argument WITH '                     '.
+    lv_argument = lv_argument && '*'.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = |ES_MSGSI|
+                                            iv_argument    = lv_argument ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~jump.
+
+    CALL FUNCTION 'RS_TOOL_ACCESS'
+      EXPORTING
+        operation     = 'SHOW'
+        object_name   = ms_item-obj_name
+        object_type   = 'MSAG'
+        in_new_window = abap_true.
+
+  ENDMETHOD.
+
 
   METHOD zif_abapgit_object~serialize.
 
     DATA: lv_msg_id TYPE rglif-message_id,
           ls_inf    TYPE t100a,
-          lt_source TYPE TABLE OF t100.
+          lt_source TYPE tty_t100.
 
 
     lv_msg_id = ms_item-obj_name.
@@ -194,98 +359,10 @@ CLASS zcl_abapgit_object_msag IMPLEMENTATION.
     io_xml->add( ig_data = lt_source
                  iv_name = 'T100' ).
 
+    serialize_longtexts_msag( it_t100 = lt_source
+                              io_xml  = io_xml ).
+
     serialize_texts( io_xml ).
 
-  ENDMETHOD.                    "serialize
-
-  METHOD serialize_texts.
-
-    DATA: lv_msg_id     TYPE rglif-message_id,
-          lt_t100_texts TYPE tt_t100_texts,
-          lt_t100t      TYPE TABLE OF t100t,
-          lt_i18n_langs TYPE TABLE OF langu.
-
-    lv_msg_id = ms_item-obj_name.
-
-    " Collect additional languages
-    " Skip master lang - it has been already serialized
-    SELECT DISTINCT sprsl AS langu INTO TABLE lt_i18n_langs
-      FROM t100t
-      WHERE arbgb = lv_msg_id
-      AND   sprsl <> mv_language.       "#EC CI_BYPASS "#EC CI_GENBUFF.
-
-    SORT lt_i18n_langs ASCENDING.
-
-    IF lines( lt_i18n_langs ) > 0.
-
-      SELECT * FROM t100t INTO CORRESPONDING FIELDS OF TABLE lt_t100t
-        WHERE sprsl <> mv_language
-        AND arbgb = lv_msg_id.                          "#EC CI_GENBUFF
-
-      SELECT * FROM t100 INTO CORRESPONDING FIELDS OF TABLE lt_t100_texts
-        FOR ALL ENTRIES IN lt_i18n_langs
-        WHERE sprsl = lt_i18n_langs-table_line
-        AND arbgb = lv_msg_id
-        ORDER BY PRIMARY KEY.             "#EC CI_SUBRC "#EC CI_GENBUFF
-
-      SORT lt_t100t BY sprsl ASCENDING.
-      SORT lt_t100_texts BY sprsl msgnr ASCENDING.
-
-      io_xml->add( iv_name = 'I18N_LANGS'
-                   ig_data = lt_i18n_langs ).
-
-      io_xml->add( iv_name = 'T100T'
-                   ig_data = lt_t100t ).
-
-      io_xml->add( iv_name = 'T100_TEXTS'
-                   ig_data = lt_t100_texts ).
-
-    ENDIF.
-
   ENDMETHOD.
-
-  METHOD deserialize_texts.
-
-    DATA: lv_msg_id     TYPE rglif-message_id,
-          ls_t100       TYPE t100,
-          lt_t100t      TYPE TABLE OF t100t,
-          lt_t100_texts TYPE tt_t100_texts,
-          lt_t100u      TYPE TABLE OF t100u.
-
-    FIELD-SYMBOLS: <ls_t100_text> TYPE ty_t100_texts.
-
-
-    lv_msg_id = ms_item-obj_name.
-
-    SELECT * FROM t100u INTO TABLE lt_t100u
-      WHERE arbgb = lv_msg_id ORDER BY PRIMARY KEY.     "#EC CI_GENBUFF
-
-    io_xml->read( EXPORTING iv_name = 'T100_TEXTS'
-                  CHANGING  cg_data = lt_t100_texts ).
-
-    io_xml->read( EXPORTING iv_name = 'T100T'
-                  CHANGING  cg_data = lt_t100t ).
-
-    MODIFY t100t FROM TABLE lt_t100t.                     "#EC CI_SUBRC
-
-    LOOP AT lt_t100_texts ASSIGNING <ls_t100_text>.
-      "check if message exists
-      READ TABLE lt_t100u TRANSPORTING NO FIELDS
-        WITH KEY arbgb = lv_msg_id msgnr = <ls_t100_text>-msgnr BINARY SEARCH.
-      CHECK sy-subrc = 0. "if original message doesn't exist no translations added
-
-      MOVE-CORRESPONDING <ls_t100_text> TO ls_t100.
-      ls_t100-arbgb = lv_msg_id.
-      MODIFY t100 FROM ls_t100.                           "#EC CI_SUBRC
-      IF sy-subrc <> 0.
-        zcx_abapgit_exception=>raise( 'MSAG: Table T100 modify failed' ).
-      ENDIF.
-    ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
-  ENDMETHOD.
-
-ENDCLASS.                    "zcl_abapgit_object_msag IMPLEMENTATION
+ENDCLASS.

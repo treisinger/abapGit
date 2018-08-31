@@ -26,8 +26,8 @@ CLASS zcl_abapgit_object_tran DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
                  cs_tstc    TYPE tstc,
 
       split_parameters_comp
-        IMPORTING iv_type  TYPE any
-                  iv_param TYPE any
+        IMPORTING ig_type  TYPE any
+                  ig_param TYPE any
         CHANGING  cg_value TYPE any,
 
       serialize_texts
@@ -68,7 +68,7 @@ CLASS ZCL_ABAPGIT_OBJECT_TRAN IMPLEMENTATION.
       ENDIF.
     ENDIF.
 
-  ENDMETHOD.                    "deserialize_texts
+  ENDMETHOD.
 
 
   METHOD serialize_texts.
@@ -89,7 +89,7 @@ CLASS ZCL_ABAPGIT_OBJECT_TRAN IMPLEMENTATION.
                    ig_data = lt_tpool_i18n ).
     ENDIF.
 
-  ENDMETHOD.                    "serialize_texts
+  ENDMETHOD.
 
 
   METHOD split_parameters.
@@ -106,14 +106,14 @@ CLASS ZCL_ABAPGIT_OBJECT_TRAN IMPLEMENTATION.
     CLEAR cs_rsstcd-s_vari.
 
     IF cs_tstcp-param(1) = '\'.             " OO-Transaktion ohne FR
-      split_parameters_comp( EXPORTING iv_type = c_oo_program
-                                       iv_param = cs_tstcp-param
+      split_parameters_comp( EXPORTING ig_type = c_oo_program
+                                       ig_param = cs_tstcp-param
                              CHANGING  cg_value = cs_tstc-pgmna ).
-      split_parameters_comp( EXPORTING iv_type = c_oo_class
-                                       iv_param = cs_tstcp-param
+      split_parameters_comp( EXPORTING ig_type = c_oo_class
+                                       ig_param = cs_tstcp-param
                              CHANGING  cg_value = cs_rsstcd-classname ).
-      split_parameters_comp( EXPORTING iv_type = c_oo_method
-                                       iv_param = cs_tstcp-param
+      split_parameters_comp( EXPORTING ig_type = c_oo_method
+                                       ig_param = cs_tstcp-param
                              CHANGING  cg_value = cs_rsstcd-method ).
 
       IF NOT cs_tstc-pgmna IS INITIAL.
@@ -223,20 +223,20 @@ CLASS ZCL_ABAPGIT_OBJECT_TRAN IMPLEMENTATION.
         ENDCASE.
       ENDLOOP.
     ENDIF.
-  ENDMETHOD.                    "split_parameters
+  ENDMETHOD.
 
 
   METHOD split_parameters_comp.
     DATA: lv_off TYPE i.
 
-    IF iv_param CS iv_type.
-      lv_off = sy-fdpos + strlen( iv_type ).
-      cg_value = iv_param+lv_off.
+    IF ig_param CS ig_type.
+      lv_off = sy-fdpos + strlen( ig_type ).
+      cg_value = ig_param+lv_off.
       IF cg_value CA '\'.
         CLEAR cg_value+sy-fdpos.
       ENDIF.
     ENDIF.
-  ENDMETHOD.                    "split_parameters_comp
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~changed_by.
@@ -267,7 +267,7 @@ CLASS ZCL_ABAPGIT_OBJECT_TRAN IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'Error from RPY_TRANSACTION_DELETE' ).
     ENDIF.
 
-  ENDMETHOD.                    "delete
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~deserialize.
@@ -362,7 +362,7 @@ CLASS ZCL_ABAPGIT_OBJECT_TRAN IMPLEMENTATION.
     " Texts deserializing (translations)
     deserialize_texts( io_xml ).
 
-  ENDMETHOD.                    "deserialize
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~exists.
@@ -374,17 +374,17 @@ CLASS ZCL_ABAPGIT_OBJECT_TRAN IMPLEMENTATION.
       WHERE tcode = ms_item-obj_name.                   "#EC CI_GENBUFF
     rv_bool = boolc( sy-subrc = 0 ).
 
-  ENDMETHOD.                    "zif_abapgit_object~exists
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
-  ENDMETHOD.                    "zif_abapgit_object~get_metadata
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~has_changed_since.
     rv_changed = abap_true.
-  ENDMETHOD.  "zif_abapgit_object~has_changed_since
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~jump.
@@ -421,7 +421,7 @@ CLASS ZCL_ABAPGIT_OBJECT_TRAN IMPLEMENTATION.
         OTHERS                = 4
         ##fm_subrc_ok.    "#EC CI_SUBRC
 
-  ENDMETHOD.                    "jump
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~serialize.
@@ -481,5 +481,20 @@ CLASS ZCL_ABAPGIT_OBJECT_TRAN IMPLEMENTATION.
     " Texts serializing (translations)
     serialize_texts( io_xml ).
 
-  ENDMETHOD.                    "serialize
+  ENDMETHOD.
+
+  METHOD zif_abapgit_object~is_locked.
+
+    DATA: lv_object TYPE eqegraarg.
+
+    lv_object = |TN{ ms_item-obj_name }|.
+    OVERLAY lv_object WITH '                                          '.
+    lv_object = lv_object && '*'.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = 'EEUDB'
+                                            iv_argument    = lv_object ).
+
+
+  ENDMETHOD.
+
 ENDCLASS.

@@ -50,21 +50,38 @@ CLASS ZCL_ABAPGIT_CONVERT IMPLEMENTATION.
 
   METHOD bitbyte_to_int.
 
-    DATA: lv_bits TYPE string.
+    DATA: bitbyte TYPE string,
+          len     TYPE i,
+          offset  TYPE i.
 
-
-    lv_bits = iv_bits.
+    bitbyte = iv_bits.
+    SHIFT bitbyte LEFT DELETING LEADING '0 '.
+    len     = strlen( bitbyte ).
+    offset  = len - 1.
 
     rv_int = 0.
-    WHILE strlen( lv_bits ) > 0.
-      rv_int = rv_int * 2.
-      IF lv_bits(1) = '1'.
-        rv_int = rv_int + 1.
-      ENDIF.
-      lv_bits = lv_bits+1.
-    ENDWHILE.
+    DO len TIMES.
 
-  ENDMETHOD.                    "bitbyte_to_int
+      IF sy-index = 1.
+
+        "Intialize
+        CASE bitbyte+offset(1).
+          WHEN '1'.
+            rv_int = 1.
+        ENDCASE.
+
+      ELSE.
+        CASE bitbyte+offset(1).
+          WHEN '1'.
+            rv_int = rv_int + ( 2 ** ( sy-index - 1 ) ).
+        ENDCASE.
+      ENDIF.
+
+      offset = offset - 1. "Move Cursor
+
+    ENDDO.
+
+  ENDMETHOD.
 
 
   METHOD int_to_xstring4.
@@ -76,7 +93,7 @@ CLASS ZCL_ABAPGIT_CONVERT IMPLEMENTATION.
     lv_x = iv_i.
     rv_xstring = lv_x.
 
-  ENDMETHOD.                    "int_to_xstring
+  ENDMETHOD.
 
 
   METHOD split_string.
@@ -90,7 +107,7 @@ CLASS ZCL_ABAPGIT_CONVERT IMPLEMENTATION.
       SPLIT iv_string AT cl_abap_char_utilities=>newline INTO TABLE rt_lines.
     ENDIF.
 
-  ENDMETHOD.                    "split_string
+  ENDMETHOD.
 
 
   METHOD string_to_xstring_utf8.
@@ -110,7 +127,7 @@ CLASS ZCL_ABAPGIT_CONVERT IMPLEMENTATION.
             cx_parameter_invalid_type.                  "#EC NO_HANDLER
     ENDTRY.
 
-  ENDMETHOD.                    "string_to_xstring_utf8
+  ENDMETHOD.
 
 
   METHOD xstring_to_int.
@@ -126,7 +143,7 @@ CLASS ZCL_ABAPGIT_CONVERT IMPLEMENTATION.
       lv_xstring = lv_xstring+1.
     ENDWHILE.
 
-  ENDMETHOD.                    "xstring_to_int
+  ENDMETHOD.
 
 
   METHOD xstring_to_string_utf8.
@@ -150,19 +167,21 @@ CLASS ZCL_ABAPGIT_CONVERT IMPLEMENTATION.
             cx_parameter_invalid_type.                  "#EC NO_HANDLER
     ENDTRY.
 
-  ENDMETHOD.                    "xstring_to_string_utf8
+  ENDMETHOD.
 
 
   METHOD x_to_bitbyte.
 
-    DATA: lv_b TYPE n.
-
     CLEAR rv_bitbyte.
 
-    DO 8 TIMES.
-      GET BIT sy-index OF iv_x INTO lv_b.
-      CONCATENATE rv_bitbyte lv_b INTO rv_bitbyte.
-    ENDDO.
+    GET BIT 1 OF iv_x INTO rv_bitbyte+0(1).
+    GET BIT 2 OF iv_x INTO rv_bitbyte+1(1).
+    GET BIT 3 OF iv_x INTO rv_bitbyte+2(1).
+    GET BIT 4 OF iv_x INTO rv_bitbyte+3(1).
+    GET BIT 5 OF iv_x INTO rv_bitbyte+4(1).
+    GET BIT 6 OF iv_x INTO rv_bitbyte+5(1).
+    GET BIT 7 OF iv_x INTO rv_bitbyte+6(1).
+    GET BIT 8 OF iv_x INTO rv_bitbyte+7(1).
 
-  ENDMETHOD.                    "x_to_bitbyte
+  ENDMETHOD.
 ENDCLASS.

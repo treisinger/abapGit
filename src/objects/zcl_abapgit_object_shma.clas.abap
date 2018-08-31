@@ -81,6 +81,8 @@ CLASS zcl_abapgit_object_shma IMPLEMENTATION.
       CHANGING
         cg_data = ls_area_attributes ).
 
+    tadir_insert( iv_package ).
+
     TRY.
         CALL METHOD ('\PROGRAM=SAPLSHMA\CLASS=LCL_SHMA_HELPER')=>('INSERT_AREA')
           EXPORTING
@@ -263,6 +265,12 @@ CLASS zcl_abapgit_object_shma IMPLEMENTATION.
   METHOD zif_abapgit_object~compare_to_remote_version.
 
     CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
+
+  ENDMETHOD.
+
+  METHOD zif_abapgit_object~is_locked.
+
+    rv_is_locked = abap_false.
 
   ENDMETHOD.
 

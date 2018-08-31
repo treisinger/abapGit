@@ -1,94 +1,20 @@
 CLASS zcl_abapgit_persistence_repo DEFINITION
   PUBLIC
-  CREATE PUBLIC .
+  CREATE PROTECTED
+
+  GLOBAL FRIENDS zcl_abapgit_persist_factory .
 
   PUBLIC SECTION.
 
+    INTERFACES zif_abapgit_persist_repo .
+
     METHODS constructor .
-    METHODS list
-      RETURNING
-        VALUE(rt_repos) TYPE zif_abapgit_persistence=>tt_repo
-      RAISING
-        zcx_abapgit_exception .
-    METHODS update_sha1
-      IMPORTING
-        !iv_key         TYPE zif_abapgit_persistence=>ty_repo-key
-        !iv_branch_sha1 TYPE zif_abapgit_persistence=>ty_repo_xml-sha1
-      RAISING
-        zcx_abapgit_exception .
-    METHODS update_local_checksums
-      IMPORTING
-        !iv_key       TYPE zif_abapgit_persistence=>ty_repo-key
-        !it_checksums TYPE zif_abapgit_persistence=>ty_repo_xml-local_checksums
-      RAISING
-        zcx_abapgit_exception .
-    METHODS update_url
-      IMPORTING
-        !iv_key TYPE zif_abapgit_persistence=>ty_repo-key
-        !iv_url TYPE zif_abapgit_persistence=>ty_repo_xml-url
-      RAISING
-        zcx_abapgit_exception .
-    METHODS update_branch_name
-      IMPORTING
-        !iv_key         TYPE zif_abapgit_persistence=>ty_repo-key
-        !iv_branch_name TYPE zif_abapgit_persistence=>ty_repo_xml-branch_name
-      RAISING
-        zcx_abapgit_exception .
-    METHODS update_head_branch
-      IMPORTING
-        !iv_key         TYPE zif_abapgit_persistence=>ty_repo-key
-        !iv_head_branch TYPE zif_abapgit_persistence=>ty_repo_xml-head_branch
-      RAISING
-        zcx_abapgit_exception .
-    METHODS update_offline
-      IMPORTING
-        !iv_key     TYPE zif_abapgit_persistence=>ty_repo-key
-        !iv_offline TYPE zif_abapgit_persistence=>ty_repo_xml-offline
-      RAISING
-        zcx_abapgit_exception .
-    METHODS update_dot_abapgit
-      IMPORTING
-        !iv_key         TYPE zif_abapgit_persistence=>ty_repo-key
-        !is_dot_abapgit TYPE zif_abapgit_dot_abapgit=>ty_dot_abapgit
-      RAISING
-        zcx_abapgit_exception .
-    METHODS add
-      IMPORTING
-        !iv_url         TYPE string
-        !iv_branch_name TYPE string
-        !iv_branch      TYPE zif_abapgit_definitions=>ty_sha1 OPTIONAL
-        !iv_package     TYPE devclass
-        !iv_offline     TYPE sap_bool DEFAULT abap_false
-        !is_dot_abapgit TYPE zif_abapgit_dot_abapgit=>ty_dot_abapgit
-      RETURNING
-        VALUE(rv_key)   TYPE zif_abapgit_persistence=>ty_repo-key
-      RAISING
-        zcx_abapgit_exception .
-    METHODS delete
-      IMPORTING
-        !iv_key TYPE zif_abapgit_persistence=>ty_repo-key
-      RAISING
-        zcx_abapgit_exception .
-    METHODS read
-      IMPORTING
-        !iv_key        TYPE zif_abapgit_persistence=>ty_repo-key
-      RETURNING
-        VALUE(rs_repo) TYPE zif_abapgit_persistence=>ty_repo
-      RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_not_found .
-    METHODS lock
-      IMPORTING
-        !iv_mode TYPE enqmode
-        !iv_key  TYPE zif_abapgit_persistence=>ty_repo-key
-      RAISING
-        zcx_abapgit_exception .
-    METHODS update_local_settings
-      IMPORTING
-        !iv_key      TYPE zif_abapgit_persistence=>ty_repo-key
-        !is_settings TYPE zif_abapgit_persistence=>ty_repo_xml-local_settings
-      RAISING
-        zcx_abapgit_exception .
+  PROTECTED SECTION.
+
+    ALIASES list
+      FOR zif_abapgit_persist_repo~list .
+    ALIASES read
+      FOR zif_abapgit_persist_repo~read .
   PRIVATE SECTION.
 
     DATA mo_db TYPE REF TO zcl_abapgit_persistence_db .
@@ -117,45 +43,8 @@ ENDCLASS.
 CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
 
 
-  METHOD add.
-
-    DATA: ls_repo        TYPE zif_abapgit_persistence=>ty_repo,
-          lv_repo_as_xml TYPE string.
-
-
-    ls_repo-url          = iv_url.
-    ls_repo-branch_name  = iv_branch_name.
-    ls_repo-sha1         = iv_branch.
-    ls_repo-package      = iv_package.
-    ls_repo-offline      = iv_offline.
-    ls_repo-dot_abapgit  = is_dot_abapgit.
-
-    lv_repo_as_xml = to_xml( ls_repo ).
-
-    rv_key = get_next_id( ).
-
-    mo_db->add( iv_type  = zcl_abapgit_persistence_db=>c_type_repo
-                iv_value = rv_key
-                iv_data  = lv_repo_as_xml ).
-
-  ENDMETHOD.
-
-
   METHOD constructor.
     mo_db = zcl_abapgit_persistence_db=>get_instance( ).
-  ENDMETHOD.
-
-
-  METHOD delete.
-
-    DATA: lo_background TYPE REF TO zcl_abapgit_persist_background.
-
-    CREATE OBJECT lo_background.
-    lo_background->delete( iv_key ).
-
-    mo_db->delete( iv_type  = zcl_abapgit_persistence_db=>c_type_repo
-                   iv_value = iv_key ).
-
   ENDMETHOD.
 
 
@@ -219,7 +108,58 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD list.
+  METHOD to_xml.
+
+    DATA: ls_xml TYPE zif_abapgit_persistence=>ty_repo_xml.
+
+
+    MOVE-CORRESPONDING is_repo TO ls_xml.
+
+    CALL TRANSFORMATION id
+      SOURCE repo = ls_xml
+      RESULT XML rv_repo_xml_string.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_repo~add.
+
+    DATA: ls_repo        TYPE zif_abapgit_persistence=>ty_repo,
+          lv_repo_as_xml TYPE string.
+
+
+    ls_repo-url          = iv_url.
+    ls_repo-branch_name  = iv_branch_name.
+    ls_repo-package      = iv_package.
+    ls_repo-offline      = iv_offline.
+    ls_repo-created_by   = sy-uname.
+    GET TIME STAMP FIELD ls_repo-created_at.
+    ls_repo-dot_abapgit  = is_dot_abapgit.
+
+    lv_repo_as_xml = to_xml( ls_repo ).
+
+    rv_key = get_next_id( ).
+
+    mo_db->add( iv_type  = zcl_abapgit_persistence_db=>c_type_repo
+                iv_value = rv_key
+                iv_data  = lv_repo_as_xml ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_repo~delete.
+
+    DATA: lo_background TYPE REF TO zcl_abapgit_persist_background.
+
+    CREATE OBJECT lo_background.
+    lo_background->delete( iv_key ).
+
+    mo_db->delete( iv_type  = zcl_abapgit_persistence_db=>c_type_repo
+                   iv_value = iv_key ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_repo~list.
 
     DATA: lt_content TYPE zif_abapgit_persistence=>tt_content,
           ls_content LIKE LINE OF lt_content,
@@ -237,7 +177,7 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD lock.
+  METHOD zif_abapgit_persist_repo~lock.
 
     mo_db->lock( iv_mode  = iv_mode
                  iv_type  = zcl_abapgit_persistence_db=>c_type_repo
@@ -246,7 +186,7 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD read.
+  METHOD zif_abapgit_persist_repo~read.
 
     DATA lt_repo TYPE zif_abapgit_persistence=>tt_repo.
 
@@ -260,20 +200,7 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD to_xml.
-
-    DATA: ls_xml TYPE zif_abapgit_persistence=>ty_repo_xml.
-
-
-    MOVE-CORRESPONDING is_repo TO ls_xml.
-
-    CALL TRANSFORMATION id
-      SOURCE repo = ls_xml
-      RESULT XML rv_repo_xml_string.
-  ENDMETHOD.
-
-
-  METHOD update_branch_name.
+  METHOD zif_abapgit_persist_repo~update_branch_name.
 
     DATA: lt_content TYPE zif_abapgit_persistence=>tt_content,
           ls_content LIKE LINE OF lt_content,
@@ -298,7 +225,38 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD update_dot_abapgit.
+  METHOD zif_abapgit_persist_repo~update_deserialized.
+
+    DATA: lt_content TYPE zif_abapgit_persistence=>tt_content,
+          ls_content LIKE LINE OF lt_content,
+          ls_repo    TYPE zif_abapgit_persistence=>ty_repo.
+
+    ASSERT NOT iv_key IS INITIAL.
+
+    TRY.
+        ls_repo = read( iv_key ).
+      CATCH zcx_abapgit_not_found.
+        zcx_abapgit_exception=>raise( 'key not found' ).
+    ENDTRY.
+
+    IF iv_deserialized_at IS NOT INITIAL.
+      ls_repo-deserialized_at = iv_deserialized_at.
+    ENDIF.
+
+    IF iv_deserialized_by IS NOT INITIAL.
+      ls_repo-deserialized_by = iv_deserialized_by.
+    ENDIF.
+
+    ls_content-data_str = to_xml( ls_repo ).
+
+    mo_db->update( iv_type  = zcl_abapgit_persistence_db=>c_type_repo
+                   iv_value = iv_key
+                   iv_data  = ls_content-data_str ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_repo~update_dot_abapgit.
 
     DATA: lt_content TYPE zif_abapgit_persistence=>tt_content,
           ls_content LIKE LINE OF lt_content,
@@ -323,7 +281,7 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD update_head_branch.
+  METHOD zif_abapgit_persist_repo~update_head_branch.
 
     DATA: lt_content TYPE zif_abapgit_persistence=>tt_content,
           ls_content LIKE LINE OF lt_content,
@@ -345,10 +303,10 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
                    iv_value = iv_key
                    iv_data  = ls_content-data_str ).
 
-  ENDMETHOD.  "update_head_branch
+  ENDMETHOD.
 
 
-  METHOD update_local_checksums.
+  METHOD zif_abapgit_persist_repo~update_local_checksums.
 
     DATA: lt_content TYPE zif_abapgit_persistence=>tt_content,
           ls_content LIKE LINE OF lt_content,
@@ -373,7 +331,7 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD update_local_settings.
+  METHOD zif_abapgit_persist_repo~update_local_settings.
 
     DATA: lt_content TYPE zif_abapgit_persistence=>tt_content,
           ls_content LIKE LINE OF lt_content,
@@ -398,7 +356,7 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD update_offline.
+  METHOD zif_abapgit_persist_repo~update_offline.
 
     DATA: lt_content TYPE zif_abapgit_persistence=>tt_content,
           ls_content LIKE LINE OF lt_content,
@@ -419,35 +377,10 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
                    iv_value = iv_key
                    iv_data  = ls_content-data_str ).
 
-  ENDMETHOD.  "update_offline
-
-
-  METHOD update_sha1.
-
-    DATA: lt_content TYPE zif_abapgit_persistence=>tt_content,
-          ls_content LIKE LINE OF lt_content,
-          ls_repo    TYPE zif_abapgit_persistence=>ty_repo.
-
-
-    ASSERT NOT iv_key IS INITIAL.
-
-    TRY.
-        ls_repo = read( iv_key ).
-      CATCH zcx_abapgit_not_found.
-        zcx_abapgit_exception=>raise( 'key not found' ).
-    ENDTRY.
-
-    ls_repo-sha1 = iv_branch_sha1.
-    ls_content-data_str = to_xml( ls_repo ).
-
-    mo_db->update( iv_type  = zcl_abapgit_persistence_db=>c_type_repo
-                   iv_value = iv_key
-                   iv_data  = ls_content-data_str ).
-
   ENDMETHOD.
 
 
-  METHOD update_url.
+  METHOD zif_abapgit_persist_repo~update_url.
 
     DATA: lt_content TYPE zif_abapgit_persistence=>tt_content,
           ls_content LIKE LINE OF lt_content,

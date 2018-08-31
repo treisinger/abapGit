@@ -8,7 +8,7 @@ CLASS zcl_abapgit_ecatt_sp_upload DEFINITION
     METHODS:
       z_set_stream_for_upload
         IMPORTING
-          im_xml TYPE xstring,
+          iv_xml TYPE xstring,
 
       upload
         REDEFINITION.
@@ -46,11 +46,10 @@ CLASS zcl_abapgit_ecatt_sp_upload IMPLEMENTATION.
     FIELD-SYMBOLS: <ecatt_object> TYPE any.
 
     TRY.
-        li_section = template_over_all->find_from_name_ns(
-                                          name = 'START_PROFILE' ).
+        li_section = template_over_all->find_from_name_ns( 'START_PROFILE' ).
 
         IF NOT li_section IS INITIAL.
-          CLASS cl_ixml DEFINITION LOAD .
+          CLASS cl_ixml DEFINITION LOAD.
           li_ixml = cl_ixml=>create( ).
           li_dom  = li_ixml->create_document( ).
           li_root ?= li_section->clone( ).
@@ -71,11 +70,11 @@ CLASS zcl_abapgit_ecatt_sp_upload IMPLEMENTATION.
               i_sp_xml = lv_start_profile.
 
         ENDIF.
-      CATCH cx_ecatt_apl .
+      CATCH cx_ecatt_apl.
         lv_exception_occurred = 'X'.
     ENDTRY.
 
-    IF  lv_exception_occurred = 'X'.
+    IF lv_exception_occurred = 'X'.
       raise_upload_exception( previous = exception_to_raise ).
     ENDIF.
   ENDMETHOD.
@@ -97,17 +96,27 @@ CLASS zcl_abapgit_ecatt_sp_upload IMPLEMENTATION.
           lv_exception_occurred TYPE etonoff,
           lo_ecatt_sp           TYPE REF TO object.
 
-    FIELD-SYMBOLS: <ecatt_sp> TYPE any.
+    FIELD-SYMBOLS: <ecatt_sp> TYPE any,
+                   <lv_d_akh> TYPE data,
+                   <lv_i_akh> TYPE data.
 
     TRY.
         ch_object-i_devclass = ch_object-d_devclass.
-        ch_object-i_akh      = ch_object-d_akh.
+
+        ASSIGN COMPONENT 'D_AKH' OF STRUCTURE ch_object
+               TO <lv_d_akh>. " doesn't exist in 702
+        ASSIGN COMPONENT 'I_AKH' OF STRUCTURE ch_object
+               TO <lv_i_akh>. " doesn't exist in 702
+        IF  <lv_d_akh> IS ASSIGNED
+        AND <lv_i_akh> IS ASSIGNED.
+          <lv_i_akh> = <lv_d_akh>.
+        ENDIF.
 
         super->upload(
           CHANGING
             ch_object       = ch_object ).
 
-        upload_data_from_stream( im_xml_file = ch_object-filename ).
+        upload_data_from_stream( ch_object-filename ).
 
       CATCH cx_ecatt_apl INTO lx_ecatt.
         IF template_over_all IS INITIAL.
@@ -118,7 +127,9 @@ CLASS zcl_abapgit_ecatt_sp_upload IMPLEMENTATION.
     ENDTRY.
 
     TRY.
-        get_attributes_from_dom_new( CHANGING ch_object = ch_object ).
+        CALL METHOD ('GET_ATTRIBUTES_FROM_DOM_NEW') " doesn't exist in 720
+          CHANGING
+            ch_object = ch_object.
       CATCH cx_ecatt_apl INTO lx_ecatt.
         lv_exc_occ = 'X'.
     ENDTRY.
@@ -195,7 +206,7 @@ CLASS zcl_abapgit_ecatt_sp_upload IMPLEMENTATION.
   METHOD z_set_stream_for_upload.
 
     " downport from CL_APL_ECATT_START_PROFIL SET_STREAM_FOR_UPLOAD
-    mv_external_xml = im_xml.
+    mv_external_xml = iv_xml.
 
   ENDMETHOD.
 ENDCLASS.

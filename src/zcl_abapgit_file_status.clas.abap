@@ -86,10 +86,10 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
 
     IF sy-subrc = 0.
       IF ls_file_sig-sha1 <> is_local-file-sha1.
-        rs_result-lstate = zif_abapgit_definitions=>gc_state-modified.
+        rs_result-lstate = zif_abapgit_definitions=>c_state-modified.
       ENDIF.
       IF ls_file_sig-sha1 <> is_remote-sha1.
-        rs_result-rstate = zif_abapgit_definitions=>gc_state-modified.
+        rs_result-rstate = zif_abapgit_definitions=>c_state-modified.
       ENDIF.
       rs_result-match = boolc( rs_result-lstate IS INITIAL
         AND rs_result-rstate IS INITIAL ).
@@ -100,8 +100,8 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
       " the user will presumably decide what to do after checking the actual diff
       rs_result-match = boolc( is_local-file-sha1 = is_remote-sha1 ).
       IF rs_result-match = abap_false.
-        rs_result-lstate = zif_abapgit_definitions=>gc_state-modified.
-        rs_result-rstate = zif_abapgit_definitions=>gc_state-modified.
+        rs_result-lstate = zif_abapgit_definitions=>c_state-modified.
+        rs_result-rstate = zif_abapgit_definitions=>c_state-modified.
       ENDIF.
     ENDIF.
 
@@ -121,7 +121,7 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
 
     " Match
     rs_result-match    = abap_false.
-    rs_result-lstate   = zif_abapgit_definitions=>gc_state-added.
+    rs_result-lstate   = zif_abapgit_definitions=>c_state-added.
 
   ENDMETHOD.  "build_new_local
 
@@ -135,7 +135,7 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
     rs_result-path     = is_remote-path.
     rs_result-filename = is_remote-filename.
     rs_result-match    = abap_false.
-    rs_result-rstate   = zif_abapgit_definitions=>gc_state-added.
+    rs_result-rstate   = zif_abapgit_definitions=>c_state-added.
 
     identify_object( EXPORTING iv_filename = is_remote-filename
                                iv_path     = is_remote-path
@@ -166,14 +166,14 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
           rs_result-match = abap_true.
           CLEAR rs_result-rstate.
         ELSE.
-          rs_result-rstate = zif_abapgit_definitions=>gc_state-modified.
+          rs_result-rstate = zif_abapgit_definitions=>c_state-modified.
         ENDIF.
 
         " Item is in state and in cache but with no package - it was deleted
         " OR devclass is the same as repo package (see #532)
         IF ls_item-devclass IS INITIAL OR ls_item-devclass = iv_devclass.
           rs_result-match  = abap_false.
-          rs_result-lstate = zif_abapgit_definitions=>gc_state-deleted.
+          rs_result-lstate = zif_abapgit_definitions=>c_state-deleted.
         ENDIF.
       ENDIF.
 
@@ -186,13 +186,14 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
 
   METHOD calculate_status.
 
-    DATA: lt_remote    LIKE it_remote,
-          lt_items     TYPE zif_abapgit_definitions=>ty_items_tt,
-          ls_item      LIKE LINE OF lt_items,
-          lv_is_xml    TYPE abap_bool,
-          lt_super     TYPE zif_abapgit_sap_package=>ty_devclass_tt,
-          lt_items_idx TYPE zif_abapgit_definitions=>ty_items_ts,
-          lt_state_idx TYPE zif_abapgit_definitions=>ty_file_signatures_ts. " Sorted by path+filename
+    DATA: lt_remote       LIKE it_remote,
+          lt_items        TYPE zif_abapgit_definitions=>ty_items_tt,
+          ls_item         LIKE LINE OF lt_items,
+          lv_is_xml       TYPE abap_bool,
+          lv_sub_fetched  TYPE abap_bool,
+          lt_sub_packages TYPE zif_abapgit_sap_package=>ty_devclass_tt,
+          lt_items_idx    TYPE zif_abapgit_definitions=>ty_items_ts,
+          lt_state_idx    TYPE zif_abapgit_definitions=>ty_file_signatures_ts. " Sorted by path+filename
 
     FIELD-SYMBOLS: <ls_remote> LIKE LINE OF it_remote,
                    <ls_result> LIKE LINE OF rt_results,
@@ -221,7 +222,7 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
         ASSERT <ls_remote>-sha1 IS NOT INITIAL.
         CLEAR <ls_remote>-sha1. " Mark as processed
       ELSE.             " Only L exists
-        <ls_result> = build_new_local( is_local = <ls_local> ).
+        <ls_result> = build_new_local( <ls_local> ).
       ENDIF.
     ENDLOOP.
 
@@ -236,14 +237,20 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
 
       CHECK lv_is_xml = abap_true. " Skip all but obj definitions
 
-      ls_item-devclass = zcl_abapgit_tadir=>get_object_package(
-                           iv_object   = ls_item-obj_type
-                           iv_obj_name = ls_item-obj_name ).
+      ls_item-devclass = zcl_abapgit_factory=>get_tadir( )->get_object_package(
+        iv_object   = ls_item-obj_type
+        iv_obj_name = ls_item-obj_name ).
 
-      IF NOT ls_item-devclass IS INITIAL.
+      IF NOT ls_item-devclass IS INITIAL AND iv_devclass <> ls_item-devclass.
+        IF lv_sub_fetched = abap_false.
+          lt_sub_packages = zcl_abapgit_factory=>get_sap_package( iv_devclass )->list_subpackages( ).
+          lv_sub_fetched = abap_true.
+          SORT lt_sub_packages BY table_line. "Optimize Read Access
+        ENDIF.
 * make sure the package is under the repo main package
-        lt_super = zcl_abapgit_sap_package=>get( iv_devclass )->list_superpackages( ).
-        READ TABLE lt_super WITH KEY table_line = ls_item-devclass TRANSPORTING NO FIELDS.
+        READ TABLE lt_sub_packages TRANSPORTING NO FIELDS
+          WITH KEY table_line = ls_item-devclass
+          BINARY SEARCH.
         IF sy-subrc <> 0.
           CLEAR ls_item-devclass.
         ENDIF.
@@ -291,7 +298,7 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
     " Try to get a unique package name for DEVC by using the path
     IF lv_type = 'DEVC'.
       ASSERT lv_name = 'PACKAGE'.
-      lv_name = zcl_abapgit_folder_logic=>path_to_package(
+      lv_name = zcl_abapgit_folder_logic=>get_instance( )->path_to_package(
         iv_top                  = iv_devclass
         io_dot                  = io_dot
         iv_create_if_not_exists = abap_false
@@ -313,6 +320,7 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
           ls_file     TYPE zif_abapgit_definitions=>ty_file_signature,
           lt_res_sort LIKE it_results,
           lt_item_idx LIKE it_results.
+    DATA: lo_folder_logic TYPE REF TO zcl_abapgit_folder_logic.
 
     FIELD-SYMBOLS: <ls_res1> LIKE LINE OF it_results,
                    <ls_res2> LIKE LINE OF it_results.
@@ -353,9 +361,10 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
     ENDLOOP.
 
     " Check that objects are created in package corresponding to folder
+    lo_folder_logic = zcl_abapgit_folder_logic=>get_instance( ).
     LOOP AT it_results ASSIGNING <ls_res1>
         WHERE NOT package IS INITIAL AND NOT path IS INITIAL.
-      lv_path = zcl_abapgit_folder_logic=>package_to_path(
+      lv_path = lo_folder_logic->package_to_path(
         iv_top     = iv_top
         io_dot     = io_dot
         iv_package = <ls_res1>-package ).
